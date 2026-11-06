@@ -83,6 +83,8 @@ src/unilab/assets/robots/g1/assets/
 src/unilab/assets/robots/g1/textures/
 src/unilab/assets/robots/go2/assets/
 src/unilab/assets/robots/sharpa_wave/meshes/
+# 27dog: meshes are ~60 MB and transferred with rsync, not git
+src/unilab/assets/robots/rc27dog/assets/
 
 # Grasp cache assets (downloaded from HF at runtime)
 src/unilab/assets/caches/*.npy
