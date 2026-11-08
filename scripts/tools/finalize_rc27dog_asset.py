@@ -159,6 +159,14 @@ def _write_robot_xml(root: ET.Element, path: Path) -> None:
     tree.write(path, encoding="utf-8", xml_declaration=False)
 
 
+def _scene_includes_robot(root: ET.Element, robot_name: str) -> bool:
+    """Whether a scene compiles as a standalone model (i.e. pulls in the robot)."""
+    expected = f"{robot_name}.xml"
+    return any(
+        (include.get("file") or "").strip() == expected for include in root.iter("include")
+    )
+
+
 def _build_scene(robot_name: str) -> ET.Element:
     """Minimal flat-ground scene used when the importer did not write one."""
     root = ET.Element("mujoco", {"model": f"{robot_name} scene"})
@@ -307,23 +315,32 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 1
 
-    if scene_xml.is_file():
-        scene_tree = ET.parse(scene_xml)
+    # import_robot.py writes a keyframe-only fragment without <include>, so a
+    # standalone compile of it has nq=0. Rebuild the scene whenever the robot is
+    # not included; keep a scene the caller already composed by hand.
+    scene_tree = ET.parse(scene_xml) if scene_xml.is_file() else None
+    if scene_tree is not None and _scene_includes_robot(scene_tree.getroot(), args.robot):
         scene_root = scene_tree.getroot()
+        rebuilt = False
     else:
-        scene_tree = None
         scene_root = _build_scene(args.robot)
+        scene_tree = ET.ElementTree(scene_root)
+        rebuilt = True
 
     _write_keyframe(scene_root, robot_model, args.height)
-    if scene_tree is None:
-        scene_tree = ET.ElementTree(scene_root)
     ET.indent(scene_tree, space="  ")
     scene_tree.write(scene_xml, encoding="utf-8", xml_declaration=False)
 
     # Final check on the composed scene.
-    model = mujoco.MjModel.from_xml_path(str(scene_xml))
+    try:
+        model = mujoco.MjModel.from_xml_path(str(scene_xml))
+    except Exception as exc:
+        print(f"error: composed scene does not compile: {exc}", file=sys.stderr)
+        print(f"       inspect {scene_xml}", file=sys.stderr)
+        return 1
     print(f"robot xml : {robot_xml.relative_to(REPO_ROOT)}")
-    print(f"scene xml : {scene_xml.relative_to(REPO_ROOT)}")
+    print(f"scene xml : {scene_xml.relative_to(REPO_ROOT)}"
+          + ("  (rebuilt: include + ground + light + keyframe)" if rebuilt else ""))
     print(f"nq={model.nq} nv={model.nv} nu={model.nu} njnt={model.njnt}")
     print(f"actuators : {model.nu} (12 position + 4 velocity)")
     print(f"home height: {args.height} m")
