@@ -563,6 +563,20 @@ class ManagerBasedRlEnv(TorchEnv):
                         )
                     )
                 term = term_cfg.func
+                if term in (
+                    mdp.base_lin_vel,
+                    mdp.base_ang_vel,
+                    mdp.projected_gravity,
+                ) or isinstance(
+                    term, (mdp.base_ang_vel_imu_misaligned, mdp.projected_gravity_imu_misaligned)
+                ):
+                    root_entity_name = self._observation_tensor_entity(term_cfg)
+                    specs.append(
+                        SceneTensorReadSpec(
+                            entity=root_entity_name,
+                            body_names=(self._term_root_body_name(root_entity_name),),
+                        )
+                    )
                 if getattr(term, "ray_pattern", None) is not None:
                     # Ray terms already declared a pose-only body request above.
                     # They must not also add the legacy four-field body-state set.

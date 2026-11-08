@@ -232,6 +232,12 @@ def projected_gravity(
     return quat_apply_inverse(view.quat_w[:, 0, :], gravity.expand((view.quat_w.shape[0], 3)))
 
 
+# Shape discovery must not read physics before the scene read plan is compiled.
+# Use the same fixed-width declaration as deferred class observations.
+for _root_term in (base_lin_vel, base_ang_vel, projected_gravity):
+    setattr(_root_term, "observation_width", 3)
+
+
 # Per-env constant IMU mounting-misalignment quaternions, keyed by env instance
 # and max_angle_rad. Sampled once per (env, angle) at term construction and
 # shared by every misaligned term of that env, so the gyroscope and gravity
@@ -276,6 +282,7 @@ def _imu_misalignment_quat(env: ManagerBasedRlEnv, max_angle_rad: float) -> torc
 class _ImuMisalignedObservation(ManagerTermBase):
     """Cold-path binding shared by IMU mounting-misalignment observation terms."""
 
+    observation_width = 3
     _term_name = "imu_misaligned"
 
     def __init__(self, cfg: ManagerTermBaseCfg, env: ManagerBasedRlEnv):

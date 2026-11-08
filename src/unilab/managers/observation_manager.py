@@ -906,12 +906,12 @@ class ObservationManager(ManagerBase):
             return values
         raise TypeError("ObservationManager results must be torch.Tensor carriers")
 
-    def _deferred_term_width(self, term_cfg: ObservationTermCfg) -> int:
-        """Resolve the fixed width of a term that binds after the read phase."""
+    def _declared_term_width(self, term_cfg: ObservationTermCfg) -> int:
+        """Resolve a fixed width without executing a term before read binding."""
         width = getattr(term_cfg.func, "observation_width", None)
         if isinstance(width, bool) or not isinstance(width, int) or width <= 0:
             raise TypeError(
-                f"ObservationManager term '{term_cfg.func}' with deferred read binding "
+                f"ObservationManager term '{term_cfg.func}' "
                 "must declare a positive integer observation_width"
             )
         return width
@@ -1008,7 +1008,8 @@ class ObservationManager(ManagerBase):
                     self._group_obs_class_term_cfgs[group_name].append(term_cfg)
 
                 deferred_bind = callable(getattr(term_cfg.func, "bind_read_phase", None))
-                if not deferred_bind:
+                declared_width = getattr(term_cfg.func, "observation_width", None)
+                if not deferred_bind and declared_width is None:
                     initial_obs = term_cfg.func(self._env, **term_cfg.params)
                     if not isinstance(initial_obs, torch.Tensor):
                         raise TypeError(
@@ -1029,7 +1030,7 @@ class ObservationManager(ManagerBase):
                         )
                     obs_dims = tuple(initial_obs.shape)
                 else:
-                    obs_dims = (self.num_envs, self._deferred_term_width(term_cfg))
+                    obs_dims = (self.num_envs, self._declared_term_width(term_cfg))
 
                 if term_cfg.scale is not None:
                     scale = torch.as_tensor(term_cfg.scale, dtype=torch.float32)

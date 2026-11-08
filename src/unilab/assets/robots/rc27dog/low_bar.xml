@@ -1,0 +1,7 @@
+<mujoco model="rc27dog low bar">
+  <worldbody>
+    <body name="low_bar" pos="1 0 0.30">
+      <geom name="low_bar" type="cylinder" size="0.015 0.6" euler="90 0 0" rgba="0.8 0.2 0.1 1" />
+    </body>
+  </worldbody>
+</mujoco>

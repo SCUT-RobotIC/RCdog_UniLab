@@ -165,4 +165,7 @@
     <velocity name="RR_feet_joint" joint="RR_feet_joint" kv="0.5" ctrlrange="-61.470496 61.470496" forcerange="-3.69 3.69" />
     <velocity name="RL_feet_joint" joint="RL_feet_joint" kv="0.5" ctrlrange="-61.470496 61.470496" forcerange="-3.69 3.69" />
   </actuator>
+  <keyframe>
+    <key name="home" qpos="0 0 0.42 1 0 0 0 0 0.7 -1.5 0 0 0.7 -1.5 0 0 0.7 -1.5 0 0 0.7 -1.5 0" ctrl="0 0.7 -1.5 0 0.7 -1.5 0 0.7 -1.5 0 0.7 -1.5 0 0 0 0" />
+  </keyframe>
 </mujoco>

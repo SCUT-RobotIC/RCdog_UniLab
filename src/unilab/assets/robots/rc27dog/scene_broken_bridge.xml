@@ -1,0 +1,35 @@
+<mujoco model="rc27dog broken bridge">
+  <include file="rc27dog.xml" />
+  <worldbody>
+    <light pos="0 0 3" dir="0 0 -1" directional="true" />
+    <body name="bridge_bottom" pos="0 0 -0.2"><geom name="floor" type="plane" size="0 0 0.05" rgba="0.3 0.3 0.3 1" /></body>
+    <body name="bridge_blocks">
+      <geom name="bridge_block_0" type="box" pos="-7.787500 0 -0.1" size="0.212500 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_1" type="box" pos="-7.225000 0 -0.1" size="0.200000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_2" type="box" pos="-6.675000 0 -0.1" size="0.200000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_3" type="box" pos="-6.125000 0 -0.1" size="0.200000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_4" type="box" pos="-5.575000 0 -0.1" size="0.200000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_5" type="box" pos="-5.025000 0 -0.1" size="0.200000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_6" type="box" pos="-4.200000 0 -0.1" size="0.475000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_7" type="box" pos="-3.375000 0 -0.1" size="0.200000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_8" type="box" pos="-2.825000 0 -0.1" size="0.200000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_9" type="box" pos="-2.275000 0 -0.1" size="0.200000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_10" type="box" pos="-1.725000 0 -0.1" size="0.200000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_11" type="box" pos="-1.175000 0 -0.1" size="0.200000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_12" type="box" pos="-0.350000 0 -0.1" size="0.475000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_13" type="box" pos="0.475000 0 -0.1" size="0.200000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_14" type="box" pos="1.025000 0 -0.1" size="0.200000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_15" type="box" pos="1.575000 0 -0.1" size="0.200000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_16" type="box" pos="2.125000 0 -0.1" size="0.200000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_17" type="box" pos="2.675000 0 -0.1" size="0.200000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_18" type="box" pos="3.500000 0 -0.1" size="0.475000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_19" type="box" pos="4.325000 0 -0.1" size="0.200000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_20" type="box" pos="4.875000 0 -0.1" size="0.200000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_21" type="box" pos="5.425000 0 -0.1" size="0.200000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_22" type="box" pos="5.975000 0 -0.1" size="0.200000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_23" type="box" pos="6.525000 0 -0.1" size="0.200000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_24" type="box" pos="7.350000 0 -0.1" size="0.475000 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+      <geom name="bridge_block_25" type="box" pos="7.987500 0 -0.1" size="0.012500 8 0.1" rgba="0.6 0.6 0.6 1" friction="0.8 0.005 0.0001" />
+    </body>
+  </worldbody>
+</mujoco>

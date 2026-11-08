@@ -1,0 +1,29 @@
+# @package _global_
+# RC27Dog concentric low-wall owner.  Walls are authored boxes, preserving the
+# sharp source geometry instead of approximating it with a height field.
+defaults:
+  - /task/rc27dog_flat/base
+  - _self_
+
+env:
+  scene:
+    model_file: src/unilab/assets/robots/rc27dog/scene.xml
+    fragment_files:
+      - src/unilab/assets/robots/rc27dog/low_wall.xml
+  max_episode_seconds: 45.0
+  commands:
+    twist:
+      _target_: unilab.tasks.locomotion.rc27dog.manager_terms.ThresholdVelocityCommandCfg
+      entity_name: robot
+      resampling_time_range: [5.0, 15.0]
+      heading_command: false
+      heading_control_stiffness: 0.5
+      rel_standing_envs: 0.05
+      rel_heading_envs: 0.0
+      rel_world_envs: 0.0
+      ranges:
+        lin_vel_x: [0.3, 0.75]
+        lin_vel_y: [0.0, 0.0]
+        ang_vel_z: [0.0, 0.0]
+        heading: null
+

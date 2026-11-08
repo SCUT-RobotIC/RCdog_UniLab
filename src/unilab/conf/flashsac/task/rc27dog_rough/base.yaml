@@ -1,0 +1,17 @@
+# @package _global_
+# RC27Dog mixed stair terrain owner.  The flat owner supplies the robot
+# contract; this file changes only the cold-path terrain and episode length.
+defaults:
+  - /task/rc27dog_flat/base
+  - _self_
+
+env:
+  scene:
+    model_file: src/unilab/assets/robots/rc27dog/rc27dog.xml
+    terrain:
+      _target_: unilab.base.scene.TerrainSceneCfg
+      generator:
+        _target_: unilab.tasks.locomotion.rc27dog.terrains.Rc27DogRoughTerrainCfg
+      geom_name: floor
+  max_episode_seconds: 20.0
+

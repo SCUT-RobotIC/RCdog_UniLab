@@ -190,6 +190,58 @@ entry 的 production task 名称抛出 `KeyError`，因此新增 production 注�
 
 ## 仓库证据
 
+## RC27Dog 轮足迁移
+
+`robot_lab_vision` 的 velocity/RCwheel 分支包含六个任务：Flat、Rough、RoughStones、
+LowBar、LowWall 和 BrokenBridge。它们现在由 UniLab 的 FlashSAC owner 配置管理，任务
+名称和后端入口如下：
+
+```text
+rc27dog_flat          -> RC27DogWheelFlat
+rc27dog_rough         -> RC27DogWheelRough
+rc27dog_rough_stones  -> RC27DogWheelRoughStones
+rc27dog_low_bar       -> RC27DogWheelLowBar
+rc27dog_low_wall      -> RC27DogWheelLowWall
+rc27dog_broken_bridge -> RC27DogWheelBrokenBridge
+```
+
+每个任务都有 `mujoco` 和 `mjwarp` owner。训练入口使用仓库顶层 CLI，例如先用一个环境
+做启动检查：
+
+```bash
+uv run train --algo flashsac --task rc27dog_flat --sim mujoco \
+  algo.num_envs=1 algo.max_iterations=1 training.no_play=true
+```
+
+迁移代码位于 `src/unilab/tasks/locomotion/rc27dog/`，机器人和障碍场景位于
+`src/unilab/assets/robots/rc27dog/`，Hydra owner 位于
+`src/unilab/conf/flashsac/task/rc27dog_*/`。轮足动作是 16 维：前 12 维按
+FR、FL、RR、RL 排列的腿部位置目标，后 4 维是轮速目标。旧 Isaac Lab checkpoint
+不能直接恢复，因为动作布局、观测历史和算法运行时都必须逐项匹配。
+
+正式训练前必须逐项完成以下检查：
+
+1. 在目标机器上用真实 MuJoCo 和 MJWarp 分别完成环境构造、`reset`、至少一个完整
+   `step` 和局部 reset；仅 Hydra compose 或 `registry.make()` 成功不能证明物理运行正常。
+2. 核对 `rc27dog.xml` 中的 16 个关节、执行器限位、轮胎碰撞体和默认 keyframe。当前
+   轮速使用 3.69 N·m、587 rpm 的峰值边界，尚未建模转速-力矩曲线、热限制或 C620
+   电流限制；需要用实机响应校准轮子的阻尼和 armature。
+3. 在 Flat、Rough 和 RoughStones 上检查初始姿态扰动端点、轮胎和地形的最小间隙、
+   楼梯/碎石碰撞以及长时间运行中的穿透。名义 `base z=0.48 m` 的轮胎几何间隙不
+   代表带扰动和完整碰撞体时的安全间隙。
+4. 为接触、力矩、关节加速度和障碍几何检查实际传感器及 body 名称。LowBar、LowWall
+   和 BrokenBridge 的奖励/终止依赖这些公开 sensor；缺失时应在构造阶段失败，不能
+   用零值掩盖。
+5. 对六个任务分别记录 policy/critic observation shape、16 维 action shape、命令
+   范围、终止条件和 reward 数值范围，并确认 MuJoCo 与 MJWarp 的读数一致。尤其检查
+   LowBar 的低姿态、LowWall 的越墙进度和 BrokenBridge 的沟槽相位与碰撞几何一致。
+6. 完成一轮短时稳定性实验后再打开大规模 FlashSAC 配置：确认没有 NaN、动作饱和、
+   接触爆炸或 episode 无故提前结束，并保存配置快照和日志。当前 smoke 命令只验证
+   启动路径，不能作为收敛或性能结果。
+7. 训练出新策略后，先做 MuJoCo/MJWarp sim-to-sim 对比，再按
+   `docs/sphinx/source/zh_CN/3-deployment/2-sim_to_sim/` 的 contract 检查流程导出和
+   回放；没有完成这些检查前不要接入实机。
+
 `tests/fixtures/isaac_lab_cartpole/` 迁移了 Isaac Lab commit
 `b0542fe2d45bf91c4e1d9ef6952b9c709c80b4e8` 的 Manager-Based Cartpole task。它保留
 全部 12 个来源 term 的名称和顺序，同时把 Torch 适配为 NumPy、嵌套 config object 适配

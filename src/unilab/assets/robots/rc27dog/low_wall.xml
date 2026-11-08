@@ -1,0 +1,22 @@
+<mujoco model="rc27dog concentric low walls">
+  <worldbody>
+    <body name="low_walls">
+      <geom name="wall_0_x_n" type="box" pos="-0.5 0 0.075" size="0.025 0.525 0.075" rgba="0.6 0.4 0.2 1" />
+      <geom name="wall_0_y_n" type="box" pos="0 -0.5 0.075" size="0.475 0.025 0.075" rgba="0.6 0.4 0.2 1" />
+      <geom name="wall_0_x_p" type="box" pos="0.5 0 0.075" size="0.025 0.525 0.075" rgba="0.6 0.4 0.2 1" />
+      <geom name="wall_0_y_p" type="box" pos="0 0.5 0.075" size="0.475 0.025 0.075" rgba="0.6 0.4 0.2 1" />
+      <geom name="wall_1_x_n" type="box" pos="-2.5 0 0.1" size="0.025 2.525 0.1" rgba="0.6 0.4 0.2 1" />
+      <geom name="wall_1_y_n" type="box" pos="0 -2.5 0.1" size="2.475 0.025 0.1" rgba="0.6 0.4 0.2 1" />
+      <geom name="wall_1_x_p" type="box" pos="2.5 0 0.1" size="0.025 2.525 0.1" rgba="0.6 0.4 0.2 1" />
+      <geom name="wall_1_y_p" type="box" pos="0 2.5 0.1" size="2.475 0.025 0.1" rgba="0.6 0.4 0.2 1" />
+      <geom name="wall_2_x_n" type="box" pos="-4.5 0 0.125" size="0.025 4.525 0.125" rgba="0.6 0.4 0.2 1" />
+      <geom name="wall_2_y_n" type="box" pos="0 -4.5 0.125" size="4.475 0.025 0.125" rgba="0.6 0.4 0.2 1" />
+      <geom name="wall_2_x_p" type="box" pos="4.5 0 0.125" size="0.025 4.525 0.125" rgba="0.6 0.4 0.2 1" />
+      <geom name="wall_2_y_p" type="box" pos="0 4.5 0.125" size="4.475 0.025 0.125" rgba="0.6 0.4 0.2 1" />
+      <geom name="wall_3_x_n" type="box" pos="-6.5 0 0.15" size="0.025 6.525 0.15" rgba="0.6 0.4 0.2 1" />
+      <geom name="wall_3_y_n" type="box" pos="0 -6.5 0.15" size="6.475 0.025 0.15" rgba="0.6 0.4 0.2 1" />
+      <geom name="wall_3_x_p" type="box" pos="6.5 0 0.15" size="0.025 6.525 0.15" rgba="0.6 0.4 0.2 1" />
+      <geom name="wall_3_y_p" type="box" pos="0 6.5 0.15" size="6.475 0.025 0.15" rgba="0.6 0.4 0.2 1" />
+    </body>
+  </worldbody>
+</mujoco>

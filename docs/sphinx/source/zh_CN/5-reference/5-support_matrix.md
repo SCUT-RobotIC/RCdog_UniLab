@@ -98,6 +98,12 @@ uv run scripts/generate_support_matrix.py --write
 | FlashSAC (torch) | `go2_joystick_flat` (Go2 joystick) | Tested | Registered | Registered | - | - | Registered | - | - | - |
 | FlashSAC (torch) | `g1_walk_flat` (G1 walk flat) | Tested | Tested | - | Configured | Registered | - | Registered | Registered | Registered |
 | FlashSAC (torch) | `g1_motion_tracking` (G1 motion tracking) | Tested | Tested | - | Configured | Configured | - | Configured | - | - |
+| FlashSAC (torch) | `rc27dog_broken_bridge` (rc27dog broken bridge) | Configured | - | - | Configured | - | - | - | - | - |
+| FlashSAC (torch) | `rc27dog_flat` (rc27dog flat) | Tested | - | - | Configured | - | - | - | - | - |
+| FlashSAC (torch) | `rc27dog_low_bar` (rc27dog low bar) | Configured | - | - | Configured | - | - | - | - | - |
+| FlashSAC (torch) | `rc27dog_low_wall` (rc27dog low wall) | Configured | - | - | Configured | - | - | - | - | - |
+| FlashSAC (torch) | `rc27dog_rough` (rc27dog rough) | Configured | - | - | Configured | - | - | - | - | - |
+| FlashSAC (torch) | `rc27dog_rough_stones` (rc27dog rough stones) | Configured | - | - | Configured | - | - | - | - | - |
 
 ### Source Index
 

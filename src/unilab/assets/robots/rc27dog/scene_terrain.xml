@@ -1,0 +1,8 @@
+<mujoco model="rc27dog generated terrain">
+  <include file="rc27dog.xml" />
+  <asset><hfield name="terrain_hfield" nrow="2" ncol="2" size="1 1 0.1 0.1" /></asset>
+  <worldbody>
+    <light pos="0 0 3" dir="0 0 -1" directional="true" />
+    <geom name="floor" type="hfield" hfield="terrain_hfield" rgba="0.5 0.5 0.5 1" friction="0.8 0.005 0.0001" />
+  </worldbody>
+</mujoco>

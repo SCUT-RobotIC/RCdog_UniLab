@@ -1,0 +1,27 @@
+# @package _global_
+defaults:
+  - /task/rc27dog_low_bar/base
+  - _self_
+training:
+  task_name: RC27DogWheelLowBar
+  sim_backend: mjwarp
+  play_render_mode: record
+algo:
+  num_envs: 2048
+  batch_size: 4096
+  learning_starts: 49
+  max_iterations: 10000
+  save_interval: 1000
+  updates_per_step: 8
+  replay_buffer_n: 256
+  tau: 0.05
+env:
+  mjwarp_nconmax: 128
+  mjwarp_njmax: 256
+  events:
+    reset_scene_to_default:
+      func: unilab.envs.mdp.skip_scene_reset
+    reset_root_state_uniform:
+      func: unilab.envs.mdp.reset_root_state_uniform_fused
+    pd_gains: null
+

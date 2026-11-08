@@ -15,7 +15,7 @@ import torch
 
 from unilab.managers.command_manager import CommandTerm, CommandTermCfg
 from unilab.managers.rng import ManagerRng
-from unilab.utils.math import yaw_from_quat
+from unilab.utils.math import quat_apply_inverse, yaw_from_quat
 
 if TYPE_CHECKING:
     from unilab.base.entity import Entity
@@ -120,16 +120,14 @@ class UniformVelocityCommand(CommandTerm):
         return tensor
 
     @property
-    def tensor_sensor_names(self) -> tuple[str, ...]:
-        """IMU sensors used by per-step command tracking metrics."""
-        return ("pelvis_local_linvel", "torso_gyro")
-
-    # Backend-local aliases for the optional packed metric read. Go2 scenes
-    # expose ``local_linvel``/``gyro`` while G1 exposes the canonical names.
-    packed_sensor_aliases = {
-        "pelvis_local_linvel": ("pelvis_local_linvel", "local_linvel"),
-        "torso_gyro": ("torso_gyro", "gyro"),
-    }
+    def tensor_body_names(self) -> tuple[str, ...]:
+        """Root state used by heading control and tracking metrics."""
+        root_body_name = self.robot.root_body_name
+        if not isinstance(root_body_name, str) or not root_body_name:
+            raise ValueError(
+                f"UniformVelocityCommand entity '{self.cfg.entity_name}' requires root_body_name"
+            )
+        return (root_body_name,)
 
     def _metric_velocities(self) -> tuple[torch.Tensor, torch.Tensor]:
         read_plan = getattr(self._env.scene, "read_plan", None)
@@ -140,23 +138,11 @@ class UniformVelocityCommand(CommandTerm):
                 "ManagerBasedRlEnv read-plan compilation, then per-step command "
                 "compute; consuming metrics before the plan exists is an ordering bug"
             )
-        names = self.tensor_sensor_names
-        packed = read_plan.sensor_names.get(self.cfg.entity_name, ())
-        # The scene pack negotiates backend-local aliases (Go2 ``local_linvel``/
-        # ``gyro``) but the semantic metric remains the canonical IMU contract.
-        aliases = self.packed_sensor_aliases
-        resolved_names = tuple(
-            next((local for local in aliases.get(name, (name,)) if local in packed), name)
-            for name in names
-        )
-        if len(names) == 2 and set(resolved_names).issubset(packed):
-            entity = self._env.scene[self.cfg.entity_name]
-            views = read_plan.sensor_tensor_views(entity, resolved_names).values
-            return views[resolved_names[0]], views[resolved_names[1]]
-        raise NotImplementedError(
-            "UniformVelocityCommand term 'twist' requires sensors "
-            f"{names} in the Manager packed Torch read plan; "
-            f"compiled={tuple(packed)}"
+        view = read_plan.body_tensor_view(self.robot, self.tensor_body_names)
+        quat = view.quat_w[:, 0, :]
+        return (
+            quat_apply_inverse(quat, view.lin_vel_w[:, 0, :]),
+            quat_apply_inverse(quat, view.ang_vel_w[:, 0, :]),
         )
 
     def _update_metrics(self) -> None:

@@ -42,7 +42,20 @@ _MOTION_CORE_TASKS = frozenset(
     }
 )
 
-PRODUCTION_TASK_NAMES = frozenset(_MBA_TASKS | _G1_LOCOMOTION_TASKS | _MOTION_CORE_TASKS)
+_RC27DOG_TASKS = frozenset(
+    {
+        "RC27DogWheelFlat",
+        "RC27DogWheelRough",
+        "RC27DogWheelRoughStones",
+        "RC27DogWheelLowBar",
+        "RC27DogWheelLowWall",
+        "RC27DogWheelBrokenBridge",
+    }
+)
+
+PRODUCTION_TASK_NAMES = frozenset(
+    _MBA_TASKS | _G1_LOCOMOTION_TASKS | _MOTION_CORE_TASKS | _RC27DOG_TASKS
+)
 
 
 def migration_record(task_name: str) -> TaskMigrationRecord:
@@ -78,6 +91,15 @@ def migration_record(task_name: str) -> TaskMigrationRecord:
             "complete",
             "Hydra owner YAML materializes task-owned NumPy motion manager terms on the canonical runtime.",
             "Keep PPO, APPO, and SAC owners aligned with the shared motion manager contract.",
+        )
+    if task_name in _RC27DOG_TASKS:
+        return TaskMigrationRecord(
+            task_name,
+            "rc27dog_wheeled_locomotion",
+            "Compatible",
+            "complete",
+            "FlashSAC owner YAML materializes the canonical Manager-Based runtime for the RC27Dog wheel-legged task.",
+            "Complete physics, sensor, reward, and sim-to-sim calibration before production training.",
         )
     raise KeyError(f"Task '{task_name}' has no #1042 migration-matrix entry")
 

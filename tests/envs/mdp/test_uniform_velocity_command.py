@@ -102,20 +102,11 @@ def _env(seed: int = 7) -> tuple[ManagerBasedRlEnv, _Backend]:
         cast(SimBackend, backend),
     )
     scene.read_plan = SimpleNamespace(
-        sensor_names={"robot": ("pelvis_local_linvel", "torso_gyro")},
+        sensor_names={},
         body_tensor_view=lambda entity, names: SimpleNamespace(
-            quat_w=torch.from_numpy(backend.body_quat[:, 0]).unsqueeze(1)
-        ),
-        sensor_tensor_views=lambda entity, names: SimpleNamespace(
-            values={
-                name: torch.from_numpy(
-                    {
-                        "pelvis_local_linvel": backend.body_lin_vel_b[:, 0],
-                        "torso_gyro": backend.body_ang_vel_b[:, 0],
-                    }[name]
-                )
-                for name in names
-            }
+            quat_w=torch.from_numpy(backend.body_quat),
+            lin_vel_w=torch.from_numpy(backend.body_lin_vel_w),
+            ang_vel_w=torch.from_numpy(backend.body_ang_vel_w),
         ),
     )
     env = cast(
@@ -210,8 +201,8 @@ def test_uniform_velocity_command_fails_closed_without_rng() -> None:
 
 def test_metrics_and_fixed_interval_resampling_follow_manager_schedule() -> None:
     env, backend = _env()
-    backend.body_lin_vel_b[:, 0, :2] = [0.5, -0.25]
-    backend.body_ang_vel_b[:, 0, 2] = 0.1
+    backend.body_lin_vel_w[:, 0, :2] = [0.5, -0.25]
+    backend.body_ang_vel_w[:, 0, 2] = 0.1
     manager = _manager(
         env,
         resampling_time_range=(0.2, 0.2),
@@ -240,6 +231,19 @@ def test_metrics_fail_closed_before_read_plan_compilation() -> None:
 
     with pytest.raises(RuntimeError, match="compiled packed tensor read plan"):
         manager.compute(0.1)
+
+
+def test_metrics_rotate_root_world_velocity_without_named_sensors() -> None:
+    env, backend = _env()
+    backend.body_quat[:, 0] = np_yaw_to_quat(np.full(4, np.pi / 2))
+    backend.body_lin_vel_w[:, 0] = [1.0, 2.0, 3.0]
+    backend.body_ang_vel_w[:, 0] = [4.0, 5.0, 6.0]
+    term = _cfg().build(env)
+
+    assert term.tensor_body_names == ("base",)
+    linear, angular = term._metric_velocities()
+    torch.testing.assert_close(linear, torch.tensor([[2.0, -1.0, 3.0]]).repeat(4, 1))
+    torch.testing.assert_close(angular, torch.tensor([[5.0, -4.0, 6.0]]).repeat(4, 1))
 
 
 def test_heading_world_forward_and_standing_modes() -> None:

@@ -1,0 +1,34 @@
+# @package _global_
+# RC27Dog low-bar owner.  The bar is composed into the MuJoCo scene during
+# materialization; the robot and its action/observation contract are shared.
+defaults:
+  - /task/rc27dog_flat/base
+  - _self_
+
+env:
+  scene:
+    model_file: src/unilab/assets/robots/rc27dog/scene.xml
+    fragment_files:
+      - src/unilab/assets/robots/rc27dog/low_bar.xml
+  max_episode_seconds: 20.0
+  commands:
+    twist:
+      _target_: unilab.tasks.locomotion.rc27dog.manager_terms.ThresholdVelocityCommandCfg
+      entity_name: robot
+      resampling_time_range: [4.0, 8.0]
+      heading_command: false
+      heading_control_stiffness: 0.5
+      rel_standing_envs: 0.0
+      rel_heading_envs: 0.0
+      rel_world_envs: 0.0
+      ranges:
+        lin_vel_x: [0.2, 0.6]
+        lin_vel_y: [-0.3, 0.3]
+        ang_vel_z: [0.0, 0.0]
+        heading: null
+  terminations:
+    base_height: null
+
+reward:
+  base_height: null
+

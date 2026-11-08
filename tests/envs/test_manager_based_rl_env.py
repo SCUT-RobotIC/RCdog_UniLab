@@ -2991,6 +2991,108 @@ def test_scene_read_plan_compiles_named_sensor_observation_requests() -> None:
         env.close()
 
 
+@pytest.mark.parametrize(
+    ("angular_velocity", "gravity", "params"),
+    [
+        (mdp.base_ang_vel, mdp.projected_gravity, {}),
+        (
+            mdp.base_ang_vel_imu_misaligned,
+            mdp.projected_gravity_imu_misaligned,
+            {"max_angle_deg": 0.0},
+        ),
+    ],
+)
+def test_root_observations_initialize_before_read_plan_and_read_live_state(
+    angular_velocity: Any, gravity: Any, params: dict[str, Any]
+) -> None:
+    cfg = _make_cfg(include_optional_managers=False, rewards={})
+    cfg.scene.entities["robot"] = EntityCfg(
+        root_body_name="base",
+        joint_names=("joint",),
+        body_names=("base",),
+        actuator_names=("motor",),
+    )
+    cfg.observations = {
+        "actor": ObservationGroupCfg(
+            terms={
+                "angular_velocity": ObservationTermCfg(func=angular_velocity, params=params),
+                "gravity": ObservationTermCfg(func=gravity, params=params),
+                "linear_velocity": ObservationTermCfg(func=mdp.base_lin_vel),
+            }
+        ),
+    }
+    cfg.critic_observation_group = None
+    cfg.terminations = {}
+    backend = _ScenePlanBackend(2)
+    backend.sensors["track_quat_w_base"][:] = torch.tensor([0.5**0.5, 0.0, 0.0, 0.5**0.5])
+    backend.sensors["track_angvel_w_base"][:] = torch.tensor([4.0, 5.0, 6.0])
+    backend.sensors["track_linvel_w_base"][:] = torch.tensor([1.0, 2.0, 3.0])
+    env = _TestEnv(cfg, cast(SimBackend, backend), 2)
+    try:
+        plan = env.scene.read_plan
+        assert plan is not None
+        # No command, reward, or termination term requests these body reads.
+        assert plan.body_names["robot"] == ("base",)
+        assert env.observation_manager.group_obs_dim == {"actor": (9,)}
+        expected = torch.tensor([[5.0, -4.0, 6.0, 0.0, 0.0, -1.0, 2.0, -1.0, 3.0]]).repeat(2, 1)
+        obs, _ = env.reset()
+        torch.testing.assert_close(obs["obs"], expected)
+        backend.sensors["track_linvel_w_base"].mul_(2.0)
+        expected[:, 6:] *= 2.0
+        state = env.step(torch.zeros((2, 1), dtype=torch.float32))
+        torch.testing.assert_close(state.obs["obs"], expected)
+        plan.close()
+        env.scene.read_plan = None
+        with pytest.raises(
+            NotImplementedError, match="requires the Manager packed Torch read plan"
+        ):
+            mdp.base_ang_vel(env)
+    finally:
+        env.close()
+
+
+def test_velocity_command_compiles_root_reads_without_observation_or_reward_requests() -> None:
+    cfg = _make_cfg(include_optional_managers=False, rewards={})
+    cfg.scene.entities["robot"] = EntityCfg(
+        root_body_name="base",
+        joint_names=("joint",),
+        body_names=("base",),
+        actuator_names=("motor",),
+    )
+    cfg.terminations = {}
+    cfg.commands = {
+        "twist": mdp.UniformVelocityCommandCfg(
+            entity_name="robot",
+            resampling_time_range=(1.0, 1.0),
+            ranges=mdp.UniformVelocityCommandCfg.Ranges(
+                lin_vel_x=(2.0, 2.0),
+                lin_vel_y=(-1.0, -1.0),
+                ang_vel_z=(0.5, 0.5),
+            ),
+        ),
+    }
+    backend = _ScenePlanBackend(2)
+    backend.sensors["track_quat_w_base"][:] = torch.tensor([0.5**0.5, 0.0, 0.0, 0.5**0.5])
+    backend.sensors["track_linvel_w_base"][:] = torch.tensor([1.0, 2.0, 3.0])
+    backend.sensors["track_angvel_w_base"][:] = torch.tensor([0.0, 0.0, 0.5])
+    env = _TestEnv(cfg, cast(SimBackend, backend), 2)
+    try:
+        plan = env.scene.read_plan
+        assert plan is not None
+        assert plan.body_names["robot"] == ("base",)
+        assert not plan.sensor_names.get("robot")
+        env.reset()
+        env.step(torch.zeros((2, 1), dtype=torch.float32))
+        term = env.command_manager.get_term("twist")
+        torch.testing.assert_close(term.metrics["error_vel_xy"], torch.zeros(2), atol=1e-6, rtol=0)
+        torch.testing.assert_close(term.metrics["error_vel_yaw"], torch.zeros(2))
+        backend.sensors["track_angvel_w_base"][:, 2] = 1.5
+        env.step(torch.zeros((2, 1), dtype=torch.float32))
+        assert torch.all(term.metrics["error_vel_yaw"] > 0)
+    finally:
+        env.close()
+
+
 def test_generic_root_and_joint_terms_compile_packed_views() -> None:
     cfg = _make_cfg(include_optional_managers=False)
     cfg.scene.entities["robot"] = EntityCfg(
