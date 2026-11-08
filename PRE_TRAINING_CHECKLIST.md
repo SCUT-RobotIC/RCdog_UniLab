@@ -114,7 +114,20 @@ uv run scripts/tools/import_robot.py \
   （它抛错前已经 `MjModel.from_xml_path` 编译过一遍，所以这一步也顺带验证了 MJCF 合法性。）
 - 有桌面的话就不用忽略，直接在查看器里拖姿态，关窗口自动写回 `scene.xml`。
 
-### 3.2 补 `<actuator>`（URDF 没有 `<transmission>`，转换结果里没有执行器）
+### 3.2 一次补全：执行器 + 关节参数 + 关键帧
+
+仓库里已经放好 [`scripts/tools/finalize_rc27dog_asset.py`](scripts/tools/finalize_rc27dog_asset.py)：
+它按 IsaacLab 那份调好的参数写入 12 个 `<position>` + 4 个 `<velocity>`、给关节补
+`armature/frictionloss`、生成 `home` 关键帧，最后编译校验（要求 `nq=23`、`nu=16`）。
+幂等，可以反复跑；关节名对不上时它会报 `missing expected joints` 并退出，不会写坏文件。
+
+```bash
+uv run scripts/tools/finalize_rc27dog_asset.py --height 0.42
+```
+
+3.2 ~ 3.4 余下内容就是脚本写入的具体东西，留作对照或手工微调时参考。
+
+#### 执行器（URDF 没有 `<transmission>`，转换结果里没有执行器）
 
 ```xml
 <actuator>
@@ -146,7 +159,7 @@ uv run scripts/tools/import_robot.py \
 - 执行器顺序 = 策略动作顺序（腿 12 + 轮 4），也决定 `keyframe` 的 `ctrl` 顺序。
 - 若 mjwarp 不认 `<velocity>`（概率低），兜底：改成 `<motor joint=... forcerange=.../>`，YAML 里把 `JointVelocityActionCfg` 换成 `JointEffortActionCfg`（此时需要自己给轮速环，控制难度上升，仅作最后手段）。
 
-### 3.3 关节本体参数
+### 3.3 关节本体参数（脚本已写入）
 
 ```xml
 <!-- 12 条腿关节：armature / frictionloss 从 rc.py 搬过来，damping 保持 0 -->
@@ -156,7 +169,7 @@ uv run scripts/tools/import_robot.py \
 <joint name="FR_feet_joint" type="hinge" axis="0 1 0" limited="false" armature="0.001"/>
 ```
 
-### 3.4 `scene.xml` 的 `home` 关键帧
+### 3.4 `scene.xml` 的 `home` 关键帧（脚本已写入）
 
 转换脚本会写一个全零的 `home`，必须改成真实站姿。四个腿参数相同，所以顺序不影响：
 
@@ -175,6 +188,8 @@ uv run scripts/tools/import_robot.py \
 - 只写 `qpos` 不写 `ctrl` 也能跑，但重置后第一步的执行器目标会是旧值。
 
 ### 3.5 验收
+
+`finalize_rc27dog_asset.py` 结尾已经打印并校验过一遍，这里只是独立复核：
 
 ```bash
 # 结构检查：nq=23, nv=22, nu=16
@@ -204,6 +219,7 @@ rsync -av src/unilab/assets/robots/rc27dog/ user@server:~/RCdog_UniLab/src/unila
 | `src/unilab/conf/flashsac/task/rc27dog_flat/base.yaml` | 16 DoF 任务契约（观测/动作/奖励/终止/事件） |
 | `src/unilab/conf/flashsac/task/rc27dog_flat/mujoco.yaml` | MuJoCo owner（先验证资产） |
 | `src/unilab/conf/flashsac/task/rc27dog_flat/mjwarp.yaml` | MJWarp owner（主训练，4096 env） |
+| `scripts/tools/finalize_rc27dog_asset.py` | 转换后一次补全执行器/关节参数/关键帧并校验 |
 
 训练命令：
 
