@@ -141,6 +141,47 @@ def _manager(env: ManagerBasedRlEnv, **overrides: Any) -> CommandManager:
     return CommandManager({"twist": _cfg(**overrides)}, env)
 
 
+def test_manual_command_survives_heading_standing_world_resample_and_reset() -> None:
+    env, _ = _env()
+    from unilab.tasks.locomotion.rc27dog.manager_terms import ThresholdVelocityCommandCfg
+
+    cfg = _cfg(
+        heading_command=True,
+        rel_standing_envs=1.0,
+        rel_world_envs=1.0,
+        ranges=UniformVelocityCommandCfg.Ranges(
+            lin_vel_x=(-1.0, 1.0),
+            lin_vel_y=(-0.5, 0.5),
+            ang_vel_z=(-0.8, 0.8),
+            heading=(-3.14, 3.14),
+        ),
+    )
+    from dataclasses import asdict
+
+    values = asdict(cfg)
+    values["ranges"] = cfg.ranges
+    term = ThresholdVelocityCommandCfg(**values).build(env)
+    term.reset()
+    held = torch.tensor([0.1, -0.1, 0.2])
+    term.set_manual_command(held)
+    held.zero_()  # The owner must retain its own copy.
+    for _ in range(3):
+        term.compute(2.0)
+        term.reset(torch.tensor([1, 3]))
+        term.refresh_reset(torch.tensor([False, True, False, True]))
+        torch.testing.assert_close(term.command, torch.tensor([[0.1, -0.1, 0.2]]).expand(4, 3))
+    term.set_manual_command(None)
+    term.compute(2.0)
+    torch.testing.assert_close(term.command, torch.zeros((4, 3)))
+
+
+@pytest.mark.parametrize("value", [torch.zeros(2), torch.tensor([0.0, float("nan"), 0.0])])
+def test_manual_command_rejects_invalid_values(value: torch.Tensor) -> None:
+    env, _ = _env()
+    with pytest.raises(ValueError, match="finite tensor"):
+        _cfg().build(env).set_manual_command(value)
+
+
 def test_public_exports_and_cfg_build_are_canonical() -> None:
     env, _ = _env()
     term = _cfg().build(env)

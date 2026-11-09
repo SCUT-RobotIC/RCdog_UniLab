@@ -137,39 +137,43 @@ def _keyboard_env(
     module: str = "tests.fake_env",
     obs_contains_command: bool = False,
 ) -> Any:
-    info: dict[str, Any] = (
-        {"commands": torch.tensor([[0.37, -0.23, 0.19]], dtype=torch.float32)}
-        if with_commands
-        else {"steps": 0}
+    from unittest.mock import Mock
+
+    from unilab.envs.mdp import (
+        UniformVelocityCommand,
+        UniformVelocityCommandCfg,
+        generated_commands,
     )
-    if obs_contains_command:
-        info["commands"] = torch.tensor([[0.37, -0.23, 0.19]], dtype=torch.float32)
-    commands_cfg = (
-        type(
-            "Cmds",
-            (),
-            {
-                "vel_limit": [[-0.6, -0.4, -0.8], [1.0, 0.4, 0.8]],
-                "heading_command": True,
-                "resampling_time": 10.0,
-            },
-        )()
-        if with_commands
-        else None
+
+    term = Mock(spec=UniformVelocityCommand)
+    term.command = torch.zeros((1, 3))
+    term.cfg = SimpleNamespace(
+        ranges=UniformVelocityCommandCfg.Ranges(
+            lin_vel_x=(-0.6, 1.0), lin_vel_y=(-0.4, 0.4), ang_vel_z=(-0.8, 0.8)
+        ),
+        heading_command=True,
     )
+    term.set_manual_command.side_effect = lambda value: term.command.copy_(value)
+    commands_cfg = {"twist": term.cfg} if with_commands else {}
     cfg_type = type(cfg_cls_name, (), {"__module__": module})
     cfg = cfg_type()
     cfg.commands = commands_cfg
-    obs = (
-        {"obs": torch.tensor([[1.0, 0.37, -0.23, 0.19, 2.0]], dtype=torch.float32)}
-        if obs_contains_command
-        else {"obs": torch.tensor([[1.0, 2.0, 3.0]], dtype=torch.float32)}
-    )
-    state = type("State", (), {"info": info, "obs": obs})()
+    cfg.policy_observation_group = "policy"
     env_type = type(env_cls_name, (), {"__module__": module})
     env = env_type()
-    env.state = state
     env.cfg = cfg
+    env.command_manager = SimpleNamespace(
+        active_terms=["twist"] if with_commands else [], get_term=lambda name: term
+    )
+    env.observation_manager = SimpleNamespace(
+        active_terms={"policy": ["command"] if obs_contains_command else []},
+        get_term_cfg=lambda group, name: SimpleNamespace(
+            func=generated_commands,
+            params={"command_name": "twist"},
+            scale=[2, 2, 0.25],
+            history_length=5,
+        ),
+    )
     return env
 
 
@@ -183,7 +187,7 @@ def test_build_keyboard_commander_ignored_without_commands(capsys):
     mod = _load_script("play_interactive")
     args = type("Args", (), {"keyboard": True})()
     assert mod._build_keyboard_commander(_keyboard_env(with_commands=False), args) is None
-    assert "no velocity 'commands'" in capsys.readouterr().out
+    assert "exactly one velocity command" in capsys.readouterr().out
 
 
 def test_build_keyboard_commander_makes_keyboard_authoritative():
@@ -198,10 +202,10 @@ def test_build_keyboard_commander_makes_keyboard_authoritative():
     assert commander is not None
     assert commander.step_lin == 0.15
     assert commander.step_ang == 0.25
-    # Heading P-control and resampling are turned off so they cannot fight the keyboard.
-    assert env.cfg.commands.heading_command is False
-    assert env.cfg.commands.resampling_time == 0.0
-    assert env.state.info["commands"].tolist() == [[0.0, 0.0, 0.0]]
+    term = env.command_manager.get_term("twist")
+    term.set_manual_command.assert_called_once()
+    assert term.command.tolist() == [[0.0, 0.0, 0.0]]
+    assert term.cfg.heading_command is True
 
 
 def test_velocity_arrows_require_velocity_command_task_and_policy_obs():
@@ -226,9 +230,9 @@ def test_velocity_arrows_require_velocity_command_task_and_policy_obs():
         obs_contains_command=False,
     )
 
-    assert mod._should_render_velocity_arrows(joystick_env) is True
-    assert mod._should_render_velocity_arrows(custom_env) is False
-    assert mod._should_render_velocity_arrows(missing_obs_command_env) is False
+    assert mod.policy_observes_velocity_command(joystick_env) is True
+    assert mod.policy_observes_velocity_command(custom_env) is True
+    assert mod.policy_observes_velocity_command(missing_obs_command_env) is False
 
 
 def test_handle_command_key_maps_drive_style_keys():
@@ -248,6 +252,48 @@ def test_handle_command_key_maps_drive_style_keys():
 
     mod._handle_command_key(commander, mod._KEY_ENTER)  # full stop
     assert commander.command.tolist() == [0.0, 0.0, 0.0]
+
+
+@pytest.mark.parametrize(
+    ("keycode", "expected"),
+    [
+        (328, [0.1, 0, 0]),
+        (322, [-0.1, 0, 0]),
+        (324, [0, 0.1, 0]),
+        (326, [0, -0.1, 0]),
+        (327, [0, 0, 0.2]),
+        (329, [0, 0, -0.2]),
+        (ord("8"), [0.1, 0, 0]),
+        (ord("4"), [0, 0.1, 0]),
+        (ord("9"), [0, 0, -0.2]),
+    ],
+)
+def test_handle_keypad_velocity_axes(keycode, expected):
+    mod = _load_script("play_interactive")
+    commander = mod.KeyboardCommander.from_vel_limit([[-1, -1, -1], [1, 1, 1]])
+    mod._handle_command_key(commander, keycode)
+    assert commander.command == pytest.approx(expected)
+
+
+@pytest.mark.parametrize("keycode", [320, 325, 335, ord("0"), ord("5"), 257])
+def test_handle_keypad_zero_command(keycode):
+    mod = _load_script("play_interactive")
+    commander = mod.KeyboardCommander.from_vel_limit([[-1, -1, -1], [1, 1, 1]])
+    commander.command[:] = [0.4, -0.2, 0.6]
+    mod._handle_command_key(commander, keycode)
+    assert commander.command.tolist() == [0.0, 0.0, 0.0]
+
+
+@pytest.mark.parametrize(
+    ("terminated", "truncated", "expected"),
+    [([False], [False], False), ([True], [False], True), ([False], [True], True)],
+)
+def test_manual_keyboard_reset_detection(terminated, truncated, expected):
+    mod = _load_script("play_interactive")
+    state = type(
+        "State", (), {"terminated": torch.tensor(terminated), "truncated": torch.tensor(truncated)}
+    )()
+    assert mod._state_requires_manual_reset(state) is expected
 
 
 def test_play_interactive_viewer_model_uses_shared_render_playback_resolver(

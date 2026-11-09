@@ -15,11 +15,14 @@ _CONCRETE_TASK_PACKAGES = ("locomotion", "manipulation", "motion_tracking")
 _TASK_REGISTRY_MODULES = (
     "unilab.tasks.locomotion.go2",
     "unilab.tasks.locomotion.g1",
+    "unilab.tasks.locomotion.rc27dog",
     "unilab.tasks.motion_tracking.g1",
 )
 
 _RUNTIME_NUMPY_ALLOWLIST = {
     "src/unilab/tasks/motion_tracking/common/motion_loader.py",
+    # Cold terrain generation, never step/reset reward or observation code.
+    "src/unilab/tasks/locomotion/rc27dog/terrains.py",
 }
 _PRODUCTION_NUMPY_IMPORT_ALLOWLIST = {
     # Base-owner adapter/reset-host boundary. These modules negotiate CPU

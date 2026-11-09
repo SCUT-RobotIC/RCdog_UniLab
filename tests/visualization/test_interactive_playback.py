@@ -723,6 +723,31 @@ def test_keyboard_commander_rejects_bad_vel_limit_shape() -> None:
         KeyboardCommander.from_vel_limit([[0.0, 0.0], [1.0, 1.0]])
 
 
+def test_unbounded_keyboard_play_override_disables_time_limit_only() -> None:
+    from unilab.visualization.interactive_playback import build_unbounded_keyboard_play_override
+
+    original = {
+        "max_episode_seconds": 20.0,
+        "terminations": {
+            "time_out": {"func": "unilab.envs.mdp.time_out", "time_out": True},
+            "terrain_out_of_bounds": {"func": "task.out_of_bounds", "time_out": True},
+            "dead_down": {"func": "task.dead_down"},
+        },
+    }
+
+    override = build_unbounded_keyboard_play_override(original)
+
+    assert override["max_episode_seconds"] == 20.0
+    assert override["terminations"]["time_out"] is None
+    assert (
+        override["terminations"]["terrain_out_of_bounds"]
+        == original["terminations"]["terrain_out_of_bounds"]
+    )
+    assert override["terminations"]["dead_down"] == original["terminations"]["dead_down"]
+    assert original["max_episode_seconds"] == 20.0
+    assert original["terminations"]["time_out"] is not None
+
+
 def test_prepare_motion_overlay_selection_filters_body_names() -> None:
     env = SimpleNamespace(
         motion_loader=object(),

@@ -1,5 +1,5 @@
 # @package _global_
-# Root task declaration for the 27dog wheel-legged robot (16 DoF: 12 revolute
+# Standalone flat task for the 27dog wheel-legged robot (16 DoF: 12 revolute
 # leg joints + 4 continuous wheel joints named *_feet_joint).
 #
 # Values mirror the tuned IsaacLab recipe in robot_lab

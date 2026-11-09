@@ -84,10 +84,7 @@ def _is_wheel_joint(name: str) -> bool:
 def _expected_joint_names(prefixes: Sequence[str]) -> list[str]:
     names: list[str] = []
     for prefix in prefixes:
-        names.extend(
-            f"{prefix}_{kind}_joint"
-            for kind in (HIP_JOINT, THIGH_JOINT, CALF_JOINT)
-        )
+        names.extend(f"{prefix}_{kind}_joint" for kind in (HIP_JOINT, THIGH_JOINT, CALF_JOINT))
     for prefix in prefixes:
         names.append(f"{prefix}_{WHEEL_JOINT}_joint")
     return names
@@ -145,9 +142,7 @@ def _replace_actuators(root: ET.Element, joint_names: Sequence[str]) -> None:
                 "name": name,
                 "joint": name,
                 "kv": f"{WHEEL_GAINS['kv']:g}",
-                "ctrlrange": (
-                    f"-{WHEEL_GAINS['ctrl']:.6f} {WHEEL_GAINS['ctrl']:.6f}"
-                ),
+                "ctrlrange": (f"-{WHEEL_GAINS['ctrl']:.6f} {WHEEL_GAINS['ctrl']:.6f}"),
                 "forcerange": f"-{WHEEL_GAINS['effort']:g} {WHEEL_GAINS['effort']:g}",
             },
         )
@@ -162,9 +157,7 @@ def _write_robot_xml(root: ET.Element, path: Path) -> None:
 def _scene_includes_robot(root: ET.Element, robot_name: str) -> bool:
     """Whether a scene compiles as a standalone model (i.e. pulls in the robot)."""
     expected = f"{robot_name}.xml"
-    return any(
-        (include.get("file") or "").strip() == expected for include in root.iter("include")
-    )
+    return any((include.get("file") or "").strip() == expected for include in root.iter("include"))
 
 
 def _build_scene(robot_name: str) -> ET.Element:
@@ -222,8 +215,9 @@ def _build_scene(robot_name: str) -> ET.Element:
 
     worldbody = ET.SubElement(root, "worldbody")
     ET.SubElement(
-        worldbody, "light", {"pos": "0 0 1.5", "dir": "0 0 -1", "directional": "true",
-                             "diffuse": "0.8 0.8 0.8"}
+        worldbody,
+        "light",
+        {"pos": "0 0 1.5", "dir": "0 0 -1", "directional": "true", "diffuse": "0.8 0.8 0.8"},
     )
     ET.SubElement(
         worldbody,
@@ -237,9 +231,7 @@ def _format(values: Sequence[float]) -> str:
     return " ".join(f"{value:.6f}".rstrip("0").rstrip(".") for value in values)
 
 
-def _write_keyframe(
-    scene_root: ET.Element, model: "object", height: float
-) -> None:
+def _write_keyframe(scene_root: ET.Element, model: "object", height: float) -> None:
     import mujoco
 
     mujoco_api = mujoco
@@ -252,9 +244,7 @@ def _write_keyframe(
     qpos[0:3] = [0.0, 0.0, height]
     qpos[3:7] = [1.0, 0.0, 0.0, 0.0]
     for joint_id in range(1, model.njnt):  # type: ignore[attr-defined]
-        name = mujoco_api.mj_id2name(
-            model, mujoco_api.mjtObj.mjOBJ_JOINT, joint_id
-        )
+        name = mujoco_api.mj_id2name(model, mujoco_api.mjtObj.mjOBJ_JOINT, joint_id)
         kind = _joint_kind(name or "")
         if kind is None:
             continue
@@ -263,9 +253,7 @@ def _write_keyframe(
     ctrl = [0.0] * model.nu  # type: ignore[attr-defined]
     for actuator_id in range(model.nu):  # type: ignore[attr-defined]
         joint_id = int(model.actuator_trnid[actuator_id, 0])  # type: ignore[attr-defined]
-        name = mujoco_api.mj_id2name(
-            model, mujoco_api.mjtObj.mjOBJ_JOINT, joint_id
-        )
+        name = mujoco_api.mj_id2name(model, mujoco_api.mjtObj.mjOBJ_JOINT, joint_id)
         kind = _joint_kind(name or "")
         ctrl[actuator_id] = STANDING_POSE[kind] if kind else 0.0
 
@@ -339,8 +327,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"       inspect {scene_xml}", file=sys.stderr)
         return 1
     print(f"robot xml : {robot_xml.relative_to(REPO_ROOT)}")
-    print(f"scene xml : {scene_xml.relative_to(REPO_ROOT)}"
-          + ("  (rebuilt: include + ground + light + keyframe)" if rebuilt else ""))
+    print(
+        f"scene xml : {scene_xml.relative_to(REPO_ROOT)}"
+        + ("  (rebuilt: include + ground + light + keyframe)" if rebuilt else "")
+    )
     print(f"nq={model.nq} nv={model.nv} nu={model.nu} njnt={model.njnt}")
     print(f"actuators : {model.nu} (12 position + 4 velocity)")
     print(f"home height: {args.height} m")

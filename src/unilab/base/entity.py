@@ -4020,7 +4020,11 @@ class Entity:
         *,
         term_name: str = "push_by_setting_velocity",
     ) -> None:
-        """Dispatch world-frame root linear/angular velocity deltas in one interval plan."""
+        """Dispatch world-frame root linear/angular velocity deltas in one interval plan.
+
+        Inputs may live on the Manager device; stage them on the backend's
+        interval operand device, as for body wrench writes.
+        """
         if linear_delta is None and angular_delta is None:
             return
         if self._root_body_ids is None:
@@ -4107,18 +4111,14 @@ class Entity:
                 f"EventManager term '{term_name}' root velocity delta must be finite floating data"
             )
         device = self._interval_operand_device()
-        if values.device != device:
-            raise ValueError(
-                f"EventManager term '{term_name}' root velocity delta must live on "
-                f"{device}; got {values.device}"
-            )
+        values = values.to(device=device, dtype=torch.float32)
         assert self._root_body_ids is not None
         delta = torch.zeros(
             (self._backend.num_envs, len(self._root_body_ids), 3),
             dtype=torch.float32,
             device=device,
         )
-        delta[ids.to(device=device, dtype=torch.int64), 0, :] = values.to(dtype=torch.float32)
+        delta[ids.to(device=device, dtype=torch.int64), 0, :] = values
         return delta
 
     def bind_body_wrench(

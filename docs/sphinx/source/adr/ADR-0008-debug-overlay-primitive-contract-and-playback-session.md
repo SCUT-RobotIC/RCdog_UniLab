@@ -87,6 +87,22 @@ record 管线各自维护了一套互不兼容的绘制代码。
 
 ## Stable Contracts
 
+### Keyboard velocity playback (2026-11-09)
+
+用户授权的键盘回放修复沿用 Manager command term 和 playback session：
+`UniformVelocityCommand.set_manual_command()` 持有机体系 `[vx, vy, wz]`，
+在 compute/reset 时跳过随机重采样、航向、世界系和站立覆盖；传 `None` 后
+恢复采样。键盘限幅来自 term 的 ranges，命令观测仍经 ObservationManager
+推进，保留训练时的历史与延迟。仅交互回放显式启用，训练默认路径不变。
+键盘入口按 command term 和 `generated_commands` 观测配置识别任务，
+不再通过旧 `state.info` 或任务类名猜测。验收覆盖重采样、reset、RC27
+真实 checkpoint 回放与按键映射；物理键盘/桌面交互需本地窗口验证。
+关闭自动重置时，play viewer 按公开状态中的 `terminated`/`truncated` 暂停
+步进并等待 Backspace；该键复位并自动恢复播放。
+键盘回放构造环境时移除 task 的 `time_out` term，但保留有限的
+`max_episode_seconds` 配置供地形 curriculum 等逻辑使用；正常行走不受训练
+episode 时限截断，物理失败和地形边界项仍然生效。
+
 - 任务侧叠加层的唯一数据契约是 `unisim.backend.base.DebugPrimitive` 列表
   （per-env、env 局部系）；不允许再引入按位置数组或 backend 私有 geom 操作
   的叠加层入口。

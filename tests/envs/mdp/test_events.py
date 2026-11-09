@@ -1365,6 +1365,49 @@ def test_velocity_push_cuda_root_body_ids_match_payload_plane() -> None:
 
 
 @pytest.mark.parametrize(
+    "source_device,backend_device",
+    [
+        ("cpu", "cpu"),
+        pytest.param("cuda", "cpu", marks=requires_cuda),
+        pytest.param("cpu", "cuda", marks=requires_cuda),
+        pytest.param("cuda", "cuda", marks=requires_cuda),
+    ],
+)
+def test_root_velocity_delta_transfers_to_backend_device_and_preserves_selected_rows(
+    source_device: str, backend_device: str
+) -> None:
+    env, backend, _ = _tensor_dr_env(
+        device_reset_randomization=True,
+        device=torch.device(backend_device),
+    )
+    backend.interval_velocity_supported = True
+    backend.interval_angular_velocity_supported = True
+    entity = env.scene["robot"]
+    entity.bind_root_linear_velocity_delta(term_name="push")
+    entity.bind_root_angular_velocity_delta(term_name="push")
+    ids = torch.tensor([2, 0], device=source_device)
+    linear = torch.tensor([[0.2, -0.3, 0.0], [-0.4, 0.5, 0.0]], dtype=torch.float64)
+    angular = torch.tensor([[0.1, 0.0, -0.2], [0.0, -0.3, 0.4]], dtype=torch.float64)
+
+    entity.apply_root_velocity_delta_to_sim(
+        linear.to(source_device), angular.to(source_device), ids, term_name="push"
+    )
+
+    assert len(backend.interval_plans) == 1
+    for term, expected in (
+        (INTERVAL_TERM_BODY_LINEAR_VELOCITY_DELTA, linear),
+        (INTERVAL_TERM_BODY_ANGULAR_VELOCITY_DELTA, angular),
+    ):
+        op = _interval_op(backend.interval_plans[0], term)
+        assert op is not None
+        assert op.payload.device.type == backend_device
+        assert op.body_ids.device == op.payload.device
+        assert op.payload.dtype == torch.float32
+        torch.testing.assert_close(op.payload[[2, 0], 0].cpu(), expected.float())
+        assert torch.count_nonzero(op.payload[1]) == 0
+
+
+@pytest.mark.parametrize(
     (
         "velocity_supported",
         "angular_supported",

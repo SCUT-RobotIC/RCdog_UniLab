@@ -67,6 +67,7 @@ class UniformVelocityCommand(CommandTerm):
             (self.num_envs, 3), dtype=torch.float32, device=self._device
         )
         self._world_command = torch.zeros_like(self._tensor_command)
+        self._manual_command: torch.Tensor | None = None
         self._heading_target = torch.zeros(self.num_envs, dtype=torch.float32, device=self._device)
         self._is_heading_env = torch.zeros(self.num_envs, dtype=torch.bool, device=self._device)
         self._is_standing_env = torch.zeros(self.num_envs, dtype=torch.bool, device=self._device)
@@ -118,6 +119,31 @@ class UniformVelocityCommand(CommandTerm):
         tensor = self._tensor_command
         assert tensor is not None
         return tensor
+
+    def set_manual_command(self, command: torch.Tensor | None) -> None:
+        """Hold a body-frame ``[vx, vy, wz]`` through compute and reset.
+
+        Used by interactive playback. All environments receive the same command;
+        callers own range limits. Passing ``None`` resumes sampling on the next
+        compute/reset. Observations retain their normal history/delay lifecycle.
+        """
+        if command is None:
+            self._manual_command = None
+            self.time_left.zero_()
+            return
+        if not isinstance(command, torch.Tensor):
+            raise TypeError("Manual velocity command must be a torch.Tensor")
+        if command.shape != (3,) or not bool(torch.isfinite(command).all()):
+            raise ValueError("Manual velocity command must be a finite tensor of shape (3,)")
+        self._manual_command = command.detach().to(self.command).clone()
+        self.command.copy_(self._manual_command)
+
+    def _resample(self, reset_mask: torch.Tensor) -> None:
+        if self._manual_command is not None:
+            # Skip subclass samplers too (e.g. RC27's low-speed dead band).
+            self.command.copy_(self._manual_command)
+            return
+        super()._resample(reset_mask)
 
     @property
     def tensor_body_names(self) -> tuple[str, ...]:
@@ -223,6 +249,9 @@ class UniformVelocityCommand(CommandTerm):
         self._world_command.copy_(torch.where(expanded, samples, self._world_command))
 
     def refresh_reset(self, reset_mask: torch.Tensor) -> None:
+        if self._manual_command is not None:
+            self.command.copy_(self._manual_command)
+            return
         tensor = self._tensor_command
         assert tensor is not None
 
@@ -290,6 +319,9 @@ class UniformVelocityCommand(CommandTerm):
         return yaw_from_quat(quat).to(dtype=torch.float32)
 
     def _update_command(self) -> None:
+        if self._manual_command is not None:
+            self.command.copy_(self._manual_command)
+            return
         tensor = self._tensor_command
         assert tensor is not None
 

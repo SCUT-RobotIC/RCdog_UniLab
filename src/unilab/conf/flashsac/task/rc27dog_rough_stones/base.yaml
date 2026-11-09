@@ -1,17 +1,703 @@
 # @package _global_
-# RC27Dog stone-road owner.  The generator is kept in the task package so the
-# terrain recipe remains cold-path and independently testable.
-defaults:
-  - /task/rc27dog_flat/base
-  - _self_
-
+# Standalone rough-stones task for the 27dog wheel-legged robot (16 DoF: 12 revolute
+# leg joints + 4 continuous wheel joints named *_feet_joint).
+#
+# Values mirror the tuned IsaacLab recipe in robot_lab
+# (tasks/.../velocity/config/wheeled/rc + assets/rc_wheeled.py) wherever a
+# UniLab owner term exists:
+#   leg action order  FR, FL, RR, RL  (robot_lab LEG_JOINT_NAMES)
+#   wheel action order FR, FL, RR, RL (robot_lab WHEEL_JOINT_NAMES)
+#   hip scale 0.125, other leg joints 0.25, wheel velocity scale 5.0
+#   sim_dt 0.005 / ctrl_dt 0.02, standing height 0.42 m
+# Source: robot_lab_vision 82595e4, after configure_wheeled_rc().
+# Terrain and contact-material mapping use the documented MuJoCo approximation.
 env:
   scene:
     model_file: src/unilab/assets/robots/rc27dog/rc27dog.xml
+    fragment_files:
+      - src/unilab/assets/robots/rc27dog/rough_stones_task.xml
     terrain:
       _target_: unilab.base.scene.TerrainSceneCfg
       generator:
         _target_: unilab.tasks.locomotion.rc27dog.terrains.Rc27DogRoughStonesTerrainCfg
       geom_name: floor
+    default_keyframe_name: home
+    entities:
+      robot:
+        root_body_name: base_link
+        geom_names:
+          - base_link_collision_0
+          - base_link_collision_1
+          - base_link_collision_2
+          - FR_hip_link_collision
+          - FR_thigh_link_collision_0
+          - FR_thigh_link_collision_1
+          - FR_thigh_link_collision_2
+          - FR_calf_link_collision_0
+          - FR_calf_link_collision_1
+          - FR_feet_link_collision
+          - FL_hip_link_collision
+          - FL_thigh_link_collision_0
+          - FL_thigh_link_collision_1
+          - FL_thigh_link_collision_2
+          - FL_calf_link_collision_0
+          - FL_calf_link_collision_1
+          - FL_feet_link_collision
+          - RR_hip_link_collision
+          - RR_thigh_link_collision_0
+          - RR_thigh_link_collision_1
+          - RR_thigh_link_collision_2
+          - RR_calf_link_collision_0
+          - RR_calf_link_collision_1
+          - RR_feet_link_collision
+          - RL_hip_link_collision
+          - RL_thigh_link_collision_0
+          - RL_thigh_link_collision_1
+          - RL_thigh_link_collision_2
+          - RL_calf_link_collision_0
+          - RL_calf_link_collision_1
+          - RL_feet_link_collision
+        body_names: ["base_link","FR_hip_link","FR_thigh_link","FR_calf_link","FR_feet_link","FL_hip_link","FL_thigh_link","FL_calf_link","FL_feet_link","RR_hip_link","RR_thigh_link","RR_calf_link","RR_feet_link","RL_hip_link","RL_thigh_link","RL_calf_link","RL_feet_link"]
+        # Deployment order: legs (FR, FL, RR, RL) then wheels (FR, FL, RR, RL).
+        joint_names:
+          - FR_hip_joint
+          - FR_thigh_joint
+          - FR_calf_joint
+          - FL_hip_joint
+          - FL_thigh_joint
+          - FL_calf_joint
+          - RR_hip_joint
+          - RR_thigh_joint
+          - RR_calf_joint
+          - RL_hip_joint
+          - RL_thigh_joint
+          - RL_calf_joint
+          - FR_feet_joint
+          - FL_feet_joint
+          - RR_feet_joint
+          - RL_feet_joint
+        actuator_names:
+          - FR_hip_joint
+          - FR_thigh_joint
+          - FR_calf_joint
+          - FL_hip_joint
+          - FL_thigh_joint
+          - FL_calf_joint
+          - RR_hip_joint
+          - RR_thigh_joint
+          - RR_calf_joint
+          - RL_hip_joint
+          - RL_thigh_joint
+          - RL_calf_joint
+          - FR_feet_joint
+          - FL_feet_joint
+          - RR_feet_joint
+          - RL_feet_joint
+  sim_dt: 0.005
+  ctrl_dt: 0.02
   max_episode_seconds: 20.0
+  observations:
+    policy:
+      enable_corruption: true
+      terms:
+        base_ang_vel:
+          func: "unilab.envs.mdp.base_ang_vel"
+          scale: 0.25
+          clip: [-100,100]
+          history_length: 5
+          noise:
+            _target_: "UniformNoiseCfg"
+            n_min: -0.2
+            n_max: 0.2
 
+
+        projected_gravity:
+          func: "unilab.envs.mdp.projected_gravity"
+          scale: 1
+          clip: [-100,100]
+          history_length: 5
+          noise:
+            _target_: "UniformNoiseCfg"
+            n_min: -0.05
+            n_max: 0.05
+
+
+        command:
+          func: "unilab.envs.mdp.generated_commands"
+          scale: 1
+          clip: [-100,100]
+          history_length: 5
+          params:
+            command_name: "twist"
+
+
+        joint_pos:
+          func: "unilab.envs.mdp.joint_pos_rel"
+          scale: 1
+          clip: [-100,100]
+          history_length: 5
+          params:
+            asset_cfg:
+              _target_: "unilab.managers.SceneEntityCfg"
+              name: "robot"
+              joint_names: ["FR_hip_joint","FR_thigh_joint","FR_calf_joint","FL_hip_joint","FL_thigh_joint","FL_calf_joint","RR_hip_joint","RR_thigh_joint","RR_calf_joint","RL_hip_joint","RL_thigh_joint","RL_calf_joint"]
+              preserve_order: true
+
+
+          noise:
+            _target_: "UniformNoiseCfg"
+            n_min: -0.03
+            n_max: 0.03
+
+
+        joint_vel:
+          func: "unilab.envs.mdp.joint_vel_rel"
+          scale: 0.05
+          clip: [-100,100]
+          history_length: 5
+          params:
+            asset_cfg:
+              _target_: "unilab.managers.SceneEntityCfg"
+              name: "robot"
+              joint_names: ["FR_hip_joint","FR_thigh_joint","FR_calf_joint","FL_hip_joint","FL_thigh_joint","FL_calf_joint","RR_hip_joint","RR_thigh_joint","RR_calf_joint","RL_hip_joint","RL_thigh_joint","RL_calf_joint","FR_feet_joint","FL_feet_joint","RR_feet_joint","RL_feet_joint"]
+              preserve_order: true
+
+
+          noise:
+            _target_: "UniformNoiseCfg"
+            n_min: -1.5
+            n_max: 1.5
+
+
+        actions:
+          func: "unilab.envs.mdp.last_action"
+          scale: 1
+          clip: [-100,100]
+          history_length: 5
+
+
+
+    critic:
+      enable_corruption: false
+      terms:
+        base_lin_vel:
+          func: "unilab.envs.mdp.base_lin_vel"
+          scale: 1
+          clip: [-100,100]
+          history_length: 5
+
+        base_ang_vel:
+          func: "unilab.envs.mdp.base_ang_vel"
+          scale: 1
+          clip: [-100,100]
+          history_length: 5
+
+        base_pos_z:
+          func: "unilab.tasks.locomotion.rc27dog.source_terms.BasePositionZ"
+          scale: 1
+          clip: [-100,100]
+          history_length: 5
+
+        projected_gravity:
+          func: "unilab.envs.mdp.projected_gravity"
+          scale: 1
+          clip: [-100,100]
+          history_length: 5
+
+        command:
+          func: "unilab.envs.mdp.generated_commands"
+          scale: 1
+          clip: [-100,100]
+          history_length: 5
+          params:
+            command_name: "twist"
+
+
+        joint_pos:
+          func: "unilab.envs.mdp.joint_pos_rel"
+          scale: 1
+          clip: [-100,100]
+          history_length: 5
+          params:
+            asset_cfg:
+              _target_: "unilab.managers.SceneEntityCfg"
+              name: "robot"
+              joint_names: ["FR_hip_joint","FR_thigh_joint","FR_calf_joint","FL_hip_joint","FL_thigh_joint","FL_calf_joint","RR_hip_joint","RR_thigh_joint","RR_calf_joint","RL_hip_joint","RL_thigh_joint","RL_calf_joint"]
+              preserve_order: true
+
+
+
+        joint_vel:
+          func: "unilab.envs.mdp.joint_vel_rel"
+          scale: 1
+          clip: [-100,100]
+          history_length: 5
+          params:
+            asset_cfg:
+              _target_: "unilab.managers.SceneEntityCfg"
+              name: "robot"
+              joint_names: ["FR_hip_joint","FR_thigh_joint","FR_calf_joint","FL_hip_joint","FL_thigh_joint","FL_calf_joint","RR_hip_joint","RR_thigh_joint","RR_calf_joint","RL_hip_joint","RL_thigh_joint","RL_calf_joint","FR_feet_joint","FL_feet_joint","RR_feet_joint","RL_feet_joint"]
+              preserve_order: true
+
+
+
+        actions:
+          func: "unilab.envs.mdp.last_action"
+          scale: 1
+          clip: [-100,100]
+          history_length: 5
+
+        height_scan:
+          func: "unilab.tasks.locomotion.rc27dog.source_terms.HeightScan"
+          clip: [-1,1]
+          params:
+            size: [1.6,1]
+            resolution: 0.1
+            offset: 0.5
+
+
+        joint_effort:
+          func: "unilab.tasks.locomotion.rc27dog.source_terms.JointEffort"
+          scale: 0.01
+          clip: [-100,100]
+          history_length: 5
+  actions:
+    # Term order defines the policy action layout: 12 legs then 4 wheels.
+    leg_joint_pos:
+      _target_: unilab.tasks.locomotion.rc27dog.actions.DelayedLegActionCfg
+      min_delay: 2
+      max_delay: 7
+      entity_name: robot
+      actuator_names:
+        - FR_hip_joint
+        - FR_thigh_joint
+        - FR_calf_joint
+        - FL_hip_joint
+        - FL_thigh_joint
+        - FL_calf_joint
+        - RR_hip_joint
+        - RR_thigh_joint
+        - RR_calf_joint
+        - RL_hip_joint
+        - RL_thigh_joint
+        - RL_calf_joint
+      scale:
+        ".*_hip_joint": 0.125
+        "^(?!.*_hip_joint).*": 0.25
+      clip: {".*": [-100.0, 100.0]}
+      use_default_offset: true
+      preserve_order: true
+    wheel_vel:
+      _target_: unilab.envs.mdp.JointVelocityActionCfg
+      entity_name: robot
+      actuator_names:
+        - FR_feet_joint
+        - FL_feet_joint
+        - RR_feet_joint
+        - RL_feet_joint
+      scale: 5.0
+      # WHEEL_MAX_VELOCITY = 587 rpm -> 61.4705 rad/s
+      clip: {".*": [-61.470496255240, 61.470496255240]}
+      use_default_offset: false
+      preserve_order: true
+  commands:
+    twist:
+      _target_: unilab.tasks.locomotion.rc27dog.manager_terms.ThresholdVelocityCommandCfg
+      entity_name: robot
+      resampling_time_range: [5.0, 15.0]
+      heading_command: true
+      heading_control_stiffness: 0.5
+      rel_standing_envs: 0.02
+      rel_heading_envs: 1.0
+      rel_world_envs: 0.0
+      ranges:
+        lin_vel_x: [-0.8, 0.8]
+        lin_vel_y: [-0.6, 0.6]
+        ang_vel_z: [-0.8, 0.8]
+        heading: [-3.141592653589793, 3.141592653589793]
+  events:
+    reset_scene_to_default:
+      func: unilab.envs.mdp.reset_scene_to_default
+      mode: reset
+    reset_root_state_uniform:
+      func: unilab.tasks.locomotion.rc27dog.events.ResetRootStateUniform
+      mode: reset
+      params:
+        initial_height: 0.48
+        pose_range:
+          x: [-0.5, 0.5]
+          y: [-0.5, 0.5]
+          z: [0.0, 0.1]
+          roll: [-0.05, 0.05]
+          pitch: [-0.05, 0.05]
+          yaw: [-3.14, 3.14]
+        velocity_range:
+          x: [-0.5, 0.5]
+          y: [-0.5, 0.5]
+          z: [-0.2, 0.2]
+          roll: [-0.25, 0.25]
+          pitch: [-0.25, 0.25]
+          yaw: [-0.5, 0.5]
+    pd_gains:
+      # Isaac randomizes all actuators; zero wheel stiffness stays zero.
+      func: unilab.envs.mdp.pd_gains
+      mode: reset
+      params:
+        kp_range: [0.75, 1.25]
+        kd_range: [0.6, 1.5]
+        operation: scale
+        asset_cfg:
+          _target_: unilab.managers.SceneEntityCfg
+          name: robot
+          actuator_names: [".*"]
+    mass_base:
+      func: unilab.tasks.locomotion.rc27dog.events.RandomizeMassInertia
+      mode: reset
+      params:
+        mass_distribution_params: [-1.0, 3.0]
+        operation: add
+        asset_cfg:
+          _target_: unilab.managers.SceneEntityCfg
+          name: robot
+          body_names: [base_link]
+    mass_others:
+      func: unilab.tasks.locomotion.rc27dog.events.RandomizeMassInertia
+      mode: reset
+      params:
+        mass_distribution_params: [0.8, 1.2]
+        operation: scale
+        asset_cfg:
+          _target_: unilab.managers.SceneEntityCfg
+          name: robot
+          body_names: ["^(?!base_link$).*"]
+    joint_parameters:
+      func: unilab.tasks.locomotion.rc27dog.events.RandomizeJointParameters
+      mode: reset
+      params:
+        friction_distribution_params: [0.2, 1.5]
+        armature_distribution_params: [0.8, 1.2]
+    contact_material:
+      func: unilab.tasks.locomotion.rc27dog.events.RandomizeContactMaterial
+      mode: reset
+      params:
+        static_friction_range: [0.35, 1.4]
+        dynamic_friction_range: [0.25, 1.1]
+        restitution_range: [0.0, 0.2]
+        num_buckets: 64
+        asset_cfg:
+          _target_: unilab.managers.SceneEntityCfg
+          name: robot
+          geom_names: [".*_collision.*"]
+    base_com:
+      func: unilab.envs.mdp.randomize_rigid_body_com
+      mode: startup
+      params:
+        com_range: {x: [-0.05, 0.08], y: [-0.05, 0.05], z: [-0.02, 0.04]}
+        asset_cfg:
+          _target_: unilab.managers.SceneEntityCfg
+          name: robot
+          body_names: [base_link]
+    reset_legs:
+      func: unilab.tasks.locomotion.rc27dog.events.ResetJointsByOffset
+      mode: reset
+      params:
+        position_range: [-0.05, 0.05]
+        velocity_range: [-0.5, 0.5]
+        asset_cfg:
+          _target_: unilab.managers.SceneEntityCfg
+          name: robot
+          joint_names: [".*_(hip|thigh|calf)_joint"]
+    reset_wheels:
+      func: unilab.tasks.locomotion.rc27dog.events.ResetJointsByOffset
+      mode: reset
+      params:
+        position_range: [0.0, 0.0]
+        velocity_range: [0.0, 0.0]
+        asset_cfg:
+          _target_: unilab.managers.SceneEntityCfg
+          name: robot
+          joint_names: [".*_feet_joint"]
+    external_wrench:
+      func: unilab.tasks.locomotion.rc27dog.events.PersistentExternalWrench
+      mode: step
+      params:
+        force_range: [-6.0, 6.0]
+        torque_range: [-4.0, 4.0]
+        asset_cfg:
+          _target_: unilab.managers.SceneEntityCfg
+          name: robot
+          body_names: [base_link]
+    push_robot:
+      func: unilab.tasks.locomotion.rc27dog.events.PushRootVelocity
+      mode: interval
+      interval_range_s: [10.0, 16.0]
+      params:
+        velocity_range:
+          x: [-0.25, 0.25]
+          y: [-0.25, 0.25]
+          roll: [-0.12, 0.12]
+          pitch: [-0.12, 0.12]
+  terminations:
+    time_out:
+      func: "unilab.envs.mdp.time_out"
+      time_out: true
+
+    terrain_out_of_bounds:
+      func: "unilab.tasks.locomotion.rc27dog.terrain_terms.terrain_out_of_bounds"
+      time_out: true
+      params:
+        distance_buffer: 3
+
+
+    dead_down:
+      func: "unilab.tasks.locomotion.rc27dog.manager_terms.dead_down"
+      params:
+        threshold: 0
+
+
+
+  curriculum:
+    terrain_levels:
+      func: "unilab.tasks.locomotion.rc27dog.terrain_terms.terrain_levels_vel"
+      params:
+        command_name: "twist"
+        tile_length: 8
+  policy_observation_group: policy
+  critic_observation_group: critic
+
+reward:
+  terminated:
+    func: "unilab.envs.mdp.is_terminated"
+    weight: -100
+
+  lin_vel_z:
+    func: "unilab.tasks.locomotion.rc27dog.source_terms.SourceReward"
+    weight: -1
+    params:
+      kind: "lin_vel_z_l2"
+      command_name: "twist"
+
+
+  ang_vel_xy:
+    func: "unilab.tasks.locomotion.rc27dog.source_terms.SourceReward"
+    weight: -1
+    params:
+      kind: "ang_vel_xy_l2"
+      command_name: "twist"
+
+
+  flat_orientation:
+    func: "unilab.tasks.locomotion.rc27dog.source_terms.SourceReward"
+    weight: -0.2
+    params:
+      kind: "flat_orientation_l2"
+      command_name: "twist"
+
+
+  lin_vel_xy_delta:
+    func: "unilab.tasks.locomotion.rc27dog.source_terms.SourceReward"
+    weight: -1.2
+    params:
+      kind: "lin_vel_xy_delta_l2"
+      command_name: "twist"
+
+
+  base_height:
+    func: "unilab.tasks.locomotion.rc27dog.source_terms.SourceReward"
+    weight: -6
+    params:
+      kind: "base_height_l2"
+      command_name: "twist"
+      target_height: 0.42
+
+
+  joint_torques:
+    func: "unilab.tasks.locomotion.rc27dog.source_terms.SourceReward"
+    weight: -0.00003
+    params:
+      kind: "joint_torques_l2"
+      command_name: "twist"
+
+
+  joint_acc:
+    func: "unilab.tasks.locomotion.rc27dog.source_terms.SourceReward"
+    weight: -0.000003
+    params:
+      kind: "joint_acc_l2"
+      command_name: "twist"
+
+
+  joint_pos_limits:
+    func: "unilab.tasks.locomotion.rc27dog.source_terms.SourceReward"
+    weight: -4
+    params:
+      kind: "joint_pos_limits"
+      command_name: "twist"
+      asset_cfg:
+        _target_: "unilab.managers.SceneEntityCfg"
+        name: "robot"
+        joint_names: ["FR_hip_joint","FR_thigh_joint","FR_calf_joint","FL_hip_joint","FL_thigh_joint","FL_calf_joint","RR_hip_joint","RR_thigh_joint","RR_calf_joint","RL_hip_joint","RL_thigh_joint","RL_calf_joint"]
+        preserve_order: true
+
+      soft_ratio: 0.9
+
+
+  joint_vel_limits:
+    func: "unilab.tasks.locomotion.rc27dog.source_terms.SourceReward"
+    weight: -3
+    params:
+      kind: "joint_vel_limits"
+      command_name: "twist"
+      soft_ratio: 1
+
+
+  joint_power:
+    func: "unilab.tasks.locomotion.rc27dog.source_terms.SourceReward"
+    weight: -0.000025
+    params:
+      kind: "joint_power"
+      command_name: "twist"
+
+
+  stand_still:
+    func: "unilab.tasks.locomotion.rc27dog.source_terms.SourceReward"
+    weight: -0.7
+    params:
+      kind: "stand_still"
+      command_name: "twist"
+      asset_cfg:
+        _target_: "unilab.managers.SceneEntityCfg"
+        name: "robot"
+        joint_names: ["FR_hip_joint","FR_thigh_joint","FR_calf_joint","FL_hip_joint","FL_thigh_joint","FL_calf_joint","RR_hip_joint","RR_thigh_joint","RR_calf_joint","RL_hip_joint","RL_thigh_joint","RL_calf_joint"]
+        preserve_order: true
+
+      command_threshold: 0.1
+
+
+  joint_pos_penalty:
+    func: "unilab.tasks.locomotion.rc27dog.source_terms.SourceReward"
+    weight: -0.8
+    params:
+      kind: "joint_pos_penalty"
+      command_name: "twist"
+      asset_cfg:
+        _target_: "unilab.managers.SceneEntityCfg"
+        name: "robot"
+        joint_names: ["FR_hip_joint","FR_thigh_joint","FR_calf_joint","FL_hip_joint","FL_thigh_joint","FL_calf_joint","RR_hip_joint","RR_thigh_joint","RR_calf_joint","RL_hip_joint","RL_thigh_joint","RL_calf_joint"]
+        preserve_order: true
+
+      stand_still_scale: 5
+      velocity_threshold: 0.2
+      command_threshold: 0.1
+
+
+  joint_mirror:
+    func: "unilab.tasks.locomotion.rc27dog.source_terms.SourceReward"
+    weight: -0.04
+    params:
+      kind: "joint_mirror"
+      command_name: "twist"
+      mirror_joints: [["FR_(hip|thigh|calf).*","RL_(hip|thigh|calf).*"],["FL_(hip|thigh|calf).*","RR_(hip|thigh|calf).*"]]
+
+
+  action_rate:
+    func: "unilab.tasks.locomotion.rc27dog.source_terms.SourceReward"
+    weight: -0.02
+    params:
+      kind: "action_rate_l2"
+      command_name: "twist"
+
+
+  undesired_contacts:
+    func: "unilab.tasks.locomotion.rc27dog.source_terms.SourceReward"
+    weight: -1.5
+    params:
+      kind: "undesired_contacts"
+      history_length: 3
+      command_name: "twist"
+      contact_names: ["contact_base_link","contact_FR_hip_link","contact_FR_thigh_link","contact_FR_calf_link","contact_FL_hip_link","contact_FL_thigh_link","contact_FL_calf_link","contact_RR_hip_link","contact_RR_thigh_link","contact_RR_calf_link","contact_RL_hip_link","contact_RL_thigh_link","contact_RL_calf_link"]
+      threshold: 1
+
+
+  contact_forces:
+    func: "unilab.tasks.locomotion.rc27dog.source_terms.SourceReward"
+    weight: -0.00025
+    params:
+      kind: "contact_forces"
+      history_length: 3
+      command_name: "twist"
+      contact_names: ["contact_FR_feet_link","contact_FL_feet_link","contact_RR_feet_link","contact_RL_feet_link"]
+      threshold: 80
+
+
+  track_lin_vel:
+    func: "unilab.tasks.locomotion.rc27dog.source_terms.SourceReward"
+    weight: 5.5
+    params:
+      kind: "track_lin_vel_xy_exp"
+      command_name: "twist"
+      std: 0.5
+
+
+  track_ang_vel:
+    func: "unilab.tasks.locomotion.rc27dog.source_terms.SourceReward"
+    weight: 2.5
+    params:
+      kind: "track_ang_vel_z_exp"
+      command_name: "twist"
+      std: 0.5
+
+
+  feet_contact_without_cmd:
+    func: "unilab.tasks.locomotion.rc27dog.source_terms.SourceReward"
+    weight: 0.05
+    params:
+      kind: "feet_contact_without_cmd"
+      history_length: 5
+      command_name: "twist"
+      contact_names: ["contact_FR_feet_link","contact_FL_feet_link","contact_RR_feet_link","contact_RL_feet_link"]
+
+
+  upward:
+    func: "unilab.tasks.locomotion.rc27dog.source_terms.SourceReward"
+    weight: 0.35
+    params:
+      kind: "upward"
+      command_name: "twist"
+
+
+  stance_hip_zero:
+    func: "unilab.tasks.locomotion.rc27dog.source_terms.SourceReward"
+    weight: 1
+    params:
+      kind: "stance_hip_zero_reward"
+      history_length: 3
+      command_name: "twist"
+      asset_cfg:
+        _target_: "unilab.managers.SceneEntityCfg"
+        name: "robot"
+        joint_names: ["FR_hip_joint","FL_hip_joint","RR_hip_joint","RL_hip_joint"]
+        preserve_order: true
+
+      contact_names: ["contact_FR_feet_link","contact_FL_feet_link","contact_RR_feet_link","contact_RL_feet_link"]
+      std: 0.25
+      contact_force_threshold: 1
+
+
+  stance_calf_singularity:
+    func: "unilab.tasks.locomotion.rc27dog.source_terms.SourceReward"
+    weight: -1
+    params:
+      kind: "stance_calf_singularity_penalty"
+      history_length: 3
+      command_name: "twist"
+      asset_cfg:
+        _target_: "unilab.managers.SceneEntityCfg"
+        name: "robot"
+        joint_names: ["FR_calf_joint","FL_calf_joint","RR_calf_joint","RL_calf_joint"]
+        preserve_order: true
+
+      contact_names: ["contact_FR_feet_link","contact_FL_feet_link","contact_RR_feet_link","contact_RL_feet_link"]
+      std: 0.15
+      singularity_angle: -1.25
+      contact_force_threshold: 1

@@ -2822,18 +2822,20 @@ def test_play_interactive_dynamic_compose_supports_algo_roots():
     assert sac_cfg.algo.algo == "sac"
 
 
-def test_play_interactive_keyboard_commands_write_device_tensors():
+def test_play_interactive_keyboard_commands_write_device_tensors(monkeypatch):
     import types
+    from unittest.mock import Mock
 
     mod = _play_interactive()
     commands = torch.zeros((2, 3), dtype=torch.float32)
-    cfg = types.SimpleNamespace(
-        heading_command=True,
-        resampling_time=2.0,
-        vel_limit=np.array([[-1.0, -0.5, -1.0], [1.0, 0.5, 1.0]]),
+    term = Mock()
+    term.command = commands
+    term.cfg.ranges = types.SimpleNamespace(
+        lin_vel_x=(-1.0, 1.0), lin_vel_y=(-0.5, 0.5), ang_vel_z=(-1.0, 1.0)
     )
-    env = types.SimpleNamespace(state=types.SimpleNamespace(info={"commands": commands}), cfg=cfg)
-    env.cfg.commands = cfg
+    term.set_manual_command.side_effect = lambda value: commands.copy_(value)
+    env = types.SimpleNamespace()
+    monkeypatch.setattr(mod, "velocity_command_term", lambda env: term)
     args = types.SimpleNamespace(
         keyboard=True,
         keyboard_step_lin=0.25,
@@ -2853,7 +2855,7 @@ def test_play_interactive_keyboard_commands_write_device_tensors():
     )
 
 
-def test_play_interactive_velocity_overlay_reads_tensors_at_render_boundary():
+def test_play_interactive_velocity_overlay_reads_tensors_at_render_boundary(monkeypatch):
     import types
 
     mod = _play_interactive()
@@ -2862,11 +2864,15 @@ def test_play_interactive_velocity_overlay_reads_tensors_at_render_boundary():
         xmat = np.tile(np.eye(3, dtype=np.float64), (4, 1, 1))
         xpos = np.zeros((4, 3), dtype=np.float64)
 
-    env = types.SimpleNamespace(
-        state=types.SimpleNamespace(
-            info={"commands": torch.tensor([[1.0, -0.5, 0.2], [0.0, 0.0, 0.0]])}
-        ),
-        get_local_linvel=lambda: torch.tensor([[0.25, 0.1, 0.0], [0.0, 0.0, 0.0]]),
+    env = types.SimpleNamespace()
+    term = types.SimpleNamespace(
+        command=torch.tensor([[1.0, -0.5, 0.2], [0.0, 0.0, 0.0]]),
+        cfg=types.SimpleNamespace(entity_name="robot"),
+    )
+    monkeypatch.setattr(mod, "velocity_command_term", lambda env: term)
+    monkeypatch.setattr(
+        "unilab.envs.mdp.base_lin_vel",
+        lambda env, asset_cfg: torch.tensor([[0.25, 0.1, 0.0], [0.0, 0.0, 0.0]]),
     )
 
     primitives = mod._velocity_command_primitives(

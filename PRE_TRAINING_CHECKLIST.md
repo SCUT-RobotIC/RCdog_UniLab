@@ -309,3 +309,53 @@ uv run eval --algo flashsac --task rc27dog_flat --sim mjwarp --load-run -1 --ren
 2. **指令范围**：现在照搬 IsaacLab 的 ±1.0 m/s、±1.0 rad/s。第一次训练建议先收到 `[0, 0.6]` 让策略先学会走。
 3. **`num_envs`**：mjwarp owner 先给 4096；L5 若 OOM 或 fps 不升反降，降到 2048。
 4. **是否补接触类奖励**：需要往 `scene.xml` 加 `<contact>` sensor（每轮一条），再写自定义 term，属于第二阶段。
+
+## 8. 启动指令
+```
+uv run train --algo flashsac --task rc27dog_rough_stones --sim mujoco \
+  algo.num_envs=4096 algo.max_iterations=15000 training.no_play=true
+```
+
+## 9. RC27DogWheelRoughStones 策略回放与键盘控制
+
+在仓库根目录、本地有图形桌面的终端运行：
+
+```bash
+uv run eval --algo flashsac --task rc27dog_rough_stones --sim mujoco \
+  --load-run 2026-11-09_17-30-49_mujoco --render-mode interactive \
+  interactive.keyboard=true
+```
+
+这会加载该 run 的最新 checkpoint（本次验证为 `model_15000.pt`），启动单环境
+MuJoCo 窗口并从零速度指令开始。其他训练结果替换 `--load-run`；`--load-run -1`
+选择最新 run。如需指定权重，在命令末尾添加 `algo.checkpoint=model_15000.pt`。
+
+点击 MuJoCo 窗口让它取得键盘焦点，小键盘打开 NumLock。主键盘数字键也支持：
+
+| 按键 | 操作 |
+| --- | --- |
+| 小键盘 `8` / `2`，或 `↑` / `↓` | 前向速度 vx 增加 / 减少 |
+| 小键盘 `4` / `6` | 横向速度 vy 增加（左移）/ 减少（右移）|
+| 小键盘 `7` / `9`，或 `←` / `→` | 转向角速度增加（左转）/ 减少（右转）|
+| 小键盘 `5`、`0` 或 Enter | 三个速度指令全部清零 |
+| Backspace | 重置机器人，同时清零指令 |
+| Space | 暂停 / 继续 |
+| N | 暂停并单步运行 |
+| `+` / `-` | 提高 / 降低回放速度 |
+| Esc 或关闭窗口 | 退出回放 |
+
+按一次会累加一档；松开按键后指令保持，反向按键会先减速再反向。线速度默认
+每档 `0.1 m/s`，角速度每档 `0.2 rad/s`；可在启动命令末尾加
+`interactive.keyboard_step_lin=0.05 interactive.keyboard_step_ang=0.1` 调小。
+当前任务自动限幅为 vx ±0.8 m/s、vy ±0.6 m/s、转向 ±0.8 rad/s。
+终端会打印当前指令，绿色箭头表示目标平面速度，蓝色箭头表示实际平面速度。
+
+例如按两次 `8` 得到前进 0.2 m/s，再按一次 `7` 叠加左转 0.2 rad/s；
+按 `5` 清零。清零是给策略零速度目标，机器人需要靠策略减速，不是物理急停。
+
+键盘模式接管 `twist` 的随机采样和航向控制，保留策略原有的 5 帧观测历史；
+新指令在下一个控制步完成观测后供策略使用（当前控制周期 0.02 秒）。
+回放保留任务的地形和物理随机化。键盘模式关闭 20 秒 episode 时限，因此正常行走
+不会因计时结束；摔倒或越出地形边界时 viewer 会暂停并等待 Backspace，重置后自动
+继续。不加 `interactive.keyboard=true` 则使用任务原本的随机速度指令。
+键盘控制用于本地 `interactive` 窗口，`viser` 浏览器模式不使用这套按键。

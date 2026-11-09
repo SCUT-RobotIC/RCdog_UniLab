@@ -81,3 +81,42 @@ the velocity command automatically show green target-velocity and blue
 current-velocity arrows. `zero` and `random` modes do not show velocity arrows.
 
 See `unilab.visualization.playback` for the underlying API.
+
+## Keypad velocity control
+
+For example, play a trained RC27 rough-stones policy:
+
+```bash
+uv run eval --algo flashsac --task rc27dog_rough_stones --sim mujoco \
+    --load-run -1 --render-mode interactive interactive.keyboard=true
+```
+
+Focus the local MuJoCo window and enable NumLock. Number-row digits also work.
+
+| Keys | Operation |
+| --- | --- |
+| `8` / `2` or Up / Down | Increase / decrease forward velocity vx |
+| `4` / `6` | Increase / decrease lateral velocity vy (left / right) |
+| `7` / `9` or Left / Right | Increase / decrease yaw rate (left / right turn) |
+| `5`, `0`, or Enter | Zero all velocity commands |
+| Backspace | Reset the robot and zero the command |
+| Space / N | Pause or resume / pause and take one step |
+| `+` / `-` | Increase / decrease playback speed |
+| Esc | Exit |
+
+Each key press adds one increment; releasing the key retains the command. Default
+increments are 0.1 m/s and 0.2 rad/s, configurable with
+`interactive.keyboard_step_lin` and `interactive.keyboard_step_ang`. Limits come
+from the task command term's ranges. Velocities use the robot body frame. Zeroing
+the command asks the policy to slow down; it does not stop physics instantly.
+
+Keyboard control requires exactly one `UniformVelocityCommand` (including
+subclasses) and a `generated_commands` observation term in the policy group.
+Scaled and history-stacked observations are supported. Manual commands override
+random resampling and heading control while observations keep their normal history
+and delay lifecycle; the policy receives a changed command after the next control
+step refreshes observations. Playback starts at zero command. Keyboard mode removes
+the task's episode time limit, so normal walking can continue indefinitely. If the
+robot falls or leaves the terrain bounds, the viewer pauses until Backspace resets it,
+then resumes automatically. Terrain and physics randomization still follow the task
+configuration. These controls apply to the local interactive viewer.

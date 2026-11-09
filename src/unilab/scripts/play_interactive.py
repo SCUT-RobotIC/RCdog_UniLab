@@ -69,6 +69,7 @@ from unilab.visualization.interactive_playback import (
     build_offpolicy_env_cfg_override,
     build_play_backend_adapter,
     build_playback_config,
+    build_unbounded_keyboard_play_override,
     create_appo_playback_session,
     create_rsl_rl_playback_session,
     create_sac_playback_session,
@@ -76,7 +77,9 @@ from unilab.visualization.interactive_playback import (
     infer_checkpoint_actor_input_dim,
     make_sim2sim_preflight,
     normalize_checkpoint_value,
+    policy_observes_velocity_command,
     prepare_motion_overlay_selection,
+    velocity_command_term,
 )
 from unilab.visualization.playback_state import (
     PhysicsStateApplier,
@@ -86,14 +89,14 @@ from unilab.visualization.playback_state import (
 _KEY_ENTER, _KEY_KP_ENTER = 257, 335
 _KEY_BACKSPACE = 259
 _KEY_RIGHT, _KEY_LEFT, _KEY_DOWN, _KEY_UP = 262, 263, 264, 265
-_COMMAND_OBS_VERIFY_COMMAND = np.array([0.37, -0.23, 0.19], dtype=np.float64)
+_KEY_KP_0, _KEY_KP_2, _KEY_KP_4, _KEY_KP_5 = 320, 322, 324, 325
+_KEY_KP_6, _KEY_KP_7, _KEY_KP_8, _KEY_KP_9 = 326, 327, 328, 329
 _DEFAULT_CAMERA_DISTANCE = 2.0
 _TERRAIN_FOLLOW_CAMERA_DISTANCE = 3.0
 _FOLLOW_CAMERA_MAX_DISTANCE = 6.0
 _VELOCITY_ARROW_HEIGHT = 0.6
 _VELOCITY_ARROW_SCALE = 0.45
 _VELOCITY_ARROW_LATERAL_OFFSET = 0.0
-_VELOCITY_COMMAND_TASK_NAME_MARKERS = ("Joystick", "Walk")
 
 ensure_registries()
 
@@ -497,16 +500,15 @@ def _velocity_command_primitives(
     lateral_offset: float,
 ) -> list[DebugPrimitive]:
     """Build velocity-command overlay primitives (target and current arrows)."""
-    state = env.state
-    info = getattr(state, "info", None) if state is not None else None
-    commands = info.get("commands") if isinstance(info, dict) else None
-    if not isinstance(commands, torch.Tensor) or commands.ndim != 2 or commands.shape[1] < 3:
+    term = velocity_command_term(env)
+    if term is None:
         return []
+    commands = term.command
 
-    try:
-        local_linvel = env.get_local_linvel()
-    except AttributeError:
-        return []
+    from unilab.envs.mdp import base_lin_vel
+    from unilab.managers import SceneEntityCfg
+
+    local_linvel = base_lin_vel(env, SceneEntityCfg(name=term.cfg.entity_name))
     if (
         not isinstance(local_linvel, torch.Tensor)
         or local_linvel.ndim != 2
@@ -608,138 +610,44 @@ def _build_keyboard_commander(env: Any, args) -> KeyboardCommander | None:
     if not bool(getattr(args, "keyboard", False)):
         return None
 
-    state = env.state
-    command_arr = state.info.get("commands") if state is not None else None
-    cmds_cfg = getattr(env.cfg, "commands", None)
-    if not isinstance(command_arr, torch.Tensor) or cmds_cfg is None:
-        print("[play_interactive] interactive.keyboard ignored: task has no velocity 'commands'.")
+    term = velocity_command_term(env)
+    if term is None:
+        print("[play_interactive] interactive.keyboard requires exactly one velocity command term.")
         return None
 
-    cmds_cfg.heading_command = False
-    cmds_cfg.resampling_time = 0.0
-
+    ranges = term.cfg.ranges
+    limits = np.asarray([ranges.lin_vel_x, ranges.lin_vel_y, ranges.ang_vel_z]).T
     commander = KeyboardCommander.from_vel_limit(
-        cmds_cfg.vel_limit,
+        limits,
         step_lin=float(getattr(args, "keyboard_step_lin", 0.1)),
         step_ang=float(getattr(args, "keyboard_step_ang", 0.2)),
     )
-    env.state.info["commands"][:] = torch.as_tensor(
-        commander.command, device=env.state.info["commands"].device
-    ).to(env.state.info["commands"].dtype)
+    _write_keyboard_command(env, commander)
     return commander
 
 
 def _write_keyboard_command(env: Any, commander: KeyboardCommander) -> None:
-    """Publish a keyboard command into the TorchEnv command tensor."""
-    commands = env.state.info["commands"]
-    commands[:] = torch.as_tensor(commander.command, device=commands.device).to(commands.dtype)
-
-
-def _state_has_velocity_commands(env: Any) -> bool:
-    state = env.state
-    info = getattr(state, "info", None) if state is not None else None
-    command_arr = info.get("commands") if isinstance(info, dict) else None
-    return (
-        isinstance(command_arr, torch.Tensor)
-        and command_arr.ndim == 2
-        and command_arr.shape[0] > 0
-        and command_arr.shape[1] >= 3
-    )
-
-
-def _has_velocity_command_config(env: Any) -> bool:
-    commands_cfg = getattr(env.cfg, "commands", None)
-    return getattr(commands_cfg, "vel_limit", None) is not None
-
-
-def _is_velocity_command_locomotion_task(env: Any) -> bool:
-    if not _has_velocity_command_config(env):
-        return False
-    cfg = env.cfg
-    candidate_names = [
-        type(env).__name__,
-        type(cfg).__name__,
-        type(env).__module__,
-        type(cfg).__module__,
-    ]
-    return any(
-        marker in candidate
-        for candidate in candidate_names
-        for marker in _VELOCITY_COMMAND_TASK_NAME_MARKERS
-    )
-
-
-def _should_render_velocity_arrows(env: Any, *, reset_fn=None) -> bool:
-    if not _is_velocity_command_locomotion_task(env):
-        return False
-    if not _state_has_velocity_commands(env):
-        return False
-    if reset_fn is None:
-        return _state_policy_obs_contains_command(env)
-    return _policy_obs_contains_command(env, reset_fn=reset_fn)
-
-
-def _row_contains_contiguous_vector(
-    row: np.ndarray,
-    vector: np.ndarray,
-    *,
-    atol: float = 1.0e-6,
-) -> bool:
-    values = np.asarray(row, dtype=np.float64).reshape(-1)
-    target = np.asarray(vector, dtype=np.float64).reshape(-1)
-    if target.size == 0 or values.size < target.size:
-        return False
-    for start in range(values.size - target.size + 1):
-        if np.allclose(values[start : start + target.size], target, atol=atol, rtol=0.0):
-            return True
-    return False
-
-
-def _state_policy_obs_contains_command(env: Any) -> bool:
-    if not _state_has_velocity_commands(env):
-        return False
-
-    state = env.state
-    obs = getattr(state, "obs", None)
-    actor_obs = obs.get("obs") if isinstance(obs, dict) else None
-    if not isinstance(actor_obs, torch.Tensor) or actor_obs.ndim != 2 or actor_obs.shape[0] == 0:
-        return False
-
-    command = state.info["commands"][0, :3].detach().cpu().numpy().astype(np.float64)
-    if np.linalg.norm(command) <= 1.0e-9:
-        return False
-    return _row_contains_contiguous_vector(actor_obs[0].detach().cpu().numpy(), command)
-
-
-def _policy_obs_contains_command(env: Any, *, reset_fn) -> bool:
-    if _state_policy_obs_contains_command(env):
-        return True
-
-    cmds_cfg = getattr(env.cfg, "commands", None)
-    if cmds_cfg is None or not hasattr(cmds_cfg, "vel_limit"):
-        return False
-
-    original_vel_limit = cmds_cfg.vel_limit
-    probe = _COMMAND_OBS_VERIFY_COMMAND.tolist()
-    try:
-        cmds_cfg.vel_limit = [probe, probe]
-        reset_fn()
-        return _state_policy_obs_contains_command(env)
-    finally:
-        cmds_cfg.vel_limit = original_vel_limit
-        reset_fn()
+    """Publish through the command owner's manual-control lifecycle."""
+    term = velocity_command_term(env)
+    if term is None:
+        raise ValueError("Keyboard playback requires exactly one velocity command term")
+    term.set_manual_command(torch.as_tensor(commander.command, device=term.command.device))
 
 
 def _handle_command_key(commander: KeyboardCommander, keycode: int) -> None:
-    if keycode == _KEY_UP:
+    if keycode in (_KEY_UP, _KEY_KP_8, ord("8")):
         commander.nudge(commander.AXIS_VX, +1.0)
-    elif keycode == _KEY_DOWN:
+    elif keycode in (_KEY_DOWN, _KEY_KP_2, ord("2")):
         commander.nudge(commander.AXIS_VX, -1.0)
-    elif keycode == _KEY_LEFT:
+    elif keycode in (_KEY_KP_4, ord("4")):
+        commander.nudge(commander.AXIS_VY, +1.0)
+    elif keycode in (_KEY_KP_6, ord("6")):
+        commander.nudge(commander.AXIS_VY, -1.0)
+    elif keycode in (_KEY_LEFT, _KEY_KP_7, ord("7")):
         commander.nudge(commander.AXIS_VYAW, +1.0)
-    elif keycode == _KEY_RIGHT:
+    elif keycode in (_KEY_RIGHT, _KEY_KP_9, ord("9")):
         commander.nudge(commander.AXIS_VYAW, -1.0)
-    elif keycode in (_KEY_ENTER, _KEY_KP_ENTER):
+    elif keycode in (_KEY_ENTER, _KEY_KP_ENTER, _KEY_KP_5, _KEY_KP_0, ord("5"), ord("0")):
         commander.zero()
     else:
         return
@@ -747,12 +655,26 @@ def _handle_command_key(commander: KeyboardCommander, keycode: int) -> None:
 
 
 def _print_keyboard_legend(args) -> None:
-    print("[play_interactive] Keyboard teleop ENABLED (drive style):")
-    print("  Up / Down    : forward / backward (vx)")
-    print("  Left / Right : turn left / right  (vyaw)")
-    print("  Enter        : full stop")
+    print("[play_interactive] Keyboard teleop ENABLED (focus viewer; NumLock on):")
+    print("  Keypad 8 / 2 (Up / Down)    : increase / decrease vx")
+    print("  Keypad 4 / 6                : increase / decrease vy (left / right)")
+    print("  Keypad 7 / 9 (Left / Right) : increase / decrease yaw rate")
+    print("  Keypad 5 / 0 / Enter        : zero velocity command")
+    print("  Backspace                   : reset robot and zero command")
+    print("  Number-row digits also work; commands persist after key release.")
     if str(getattr(args, "action_mode", "")) != "policy":
         print("  NOTE: action_mode is not 'policy'; commands will not drive the robot.")
+
+
+def _state_requires_manual_reset(state: Any) -> bool:
+    """Return whether a non-autoreset env has a completed row awaiting reset."""
+    if state is None:
+        return False
+    terminated = getattr(state, "terminated", None)
+    truncated = getattr(state, "truncated", None)
+    if not isinstance(terminated, torch.Tensor) or not isinstance(truncated, torch.Tensor):
+        return False
+    return bool((terminated | truncated).any())
 
 
 def create_playback_session(
@@ -811,6 +733,8 @@ def create_playback_session(
             env_cfg_override = build_play_backend_adapter(
                 cfg, root_dir=Path.cwd(), algo_name=algo
             ).build_task_env_cfg_override()
+        if bool(getattr(args, "keyboard", False)):
+            env_cfg_override = build_unbounded_keyboard_play_override(env_cfg_override)
         env_cfg_override = apply_backend_env_device_override(
             env_cfg_override,
             sim_backend,
@@ -951,21 +875,21 @@ def play_interactive(args, cfg: DictConfig, *, algo: str | None = None):
     ctrl_dt = env.cfg.ctrl_dt
 
     playback_session.reset()
-    render_velocity_arrows = str(args.action_mode) == "policy" and _should_render_velocity_arrows(
-        env, reset_fn=playback_session.reset
+    render_velocity_arrows = str(args.action_mode) == "policy" and policy_observes_velocity_command(
+        env
     )
     if render_velocity_arrows:
         print("[play_interactive] Velocity arrows enabled (green=target, blue=current).")
     if bool(getattr(args, "keyboard", False)) and bool(
         getattr(args, "require_keyboard_command_obs", True)
     ):
-        if not _state_has_velocity_commands(env):
+        if velocity_command_term(env) is None:
             print(
                 "[play_interactive] interactive.keyboard unavailable: "
-                "task state has no velocity 'commands'."
+                "task must have exactly one velocity command term."
             )
             return
-        if not _policy_obs_contains_command(env, reset_fn=playback_session.reset):
+        if not policy_observes_velocity_command(env):
             print(
                 "[play_interactive] interactive.keyboard unavailable: "
                 "policy obs does not contain the velocity command."
@@ -977,20 +901,30 @@ def play_interactive(args, cfg: DictConfig, *, algo: str | None = None):
     )
 
     commander = _build_keyboard_commander(env, args)
+    awaiting_reset = False
     if commander is not None:
         env.set_autoreset(False)
+        # Fill reset history with the held zero command before policy inference.
+        playback_session.reset()
 
     def _on_key(keycode: int) -> None:
+        nonlocal awaiting_reset
         # Task-owned hook first: navigation teleop consumes the arrows/Enter
         # while its action term is in teleop mode; other keys fall through.
         key_hook = getattr(env, "play_key_hook", None)
         if callable(key_hook) and key_hook(keycode):
             return
         if keycode == ord(" "):
+            if awaiting_reset:
+                print("[play_interactive] reset required; press Backspace before resuming.")
+                return
             paused = controls.toggle_pause()
             status = "paused" if paused else "resumed"
             print(f"[play_interactive] {status} (space)")
         elif keycode in (ord("N"), ord("n")):
+            if awaiting_reset:
+                print("[play_interactive] reset required; press Backspace before stepping.")
+                return
             controls.request_single_step()
             if not controls.paused:
                 controls.pause()
@@ -1003,8 +937,11 @@ def play_interactive(args, cfg: DictConfig, *, algo: str | None = None):
             controls.set_speed(controls.speed / 1.25)
             print(f"[play_interactive] speed={controls.speed:.2f}x")
         elif commander is not None and keycode == _KEY_BACKSPACE:
-            playback_session.reset()
             commander.zero()
+            _write_keyboard_command(env, commander)
+            playback_session.reset()
+            awaiting_reset = False
+            controls.resume()
             print("[play_interactive] reset (backspace)")
         elif commander is not None:
             _handle_command_key(commander, keycode)
@@ -1055,6 +992,14 @@ def play_interactive(args, cfg: DictConfig, *, algo: str | None = None):
                 # Write the command before stepping so this step's obs follow it.
                 if commander is not None and env.state is not None:
                     _write_keyboard_command(env, commander)
+
+                if commander is not None and _state_requires_manual_reset(env.state):
+                    if not awaiting_reset:
+                        print(
+                            "[play_interactive] Episode ended; press Backspace to reset the robot."
+                        )
+                        awaiting_reset = True
+                        controls.pause()
 
                 playback_session.advance(controls)
 

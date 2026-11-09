@@ -75,3 +75,37 @@ obs 中包含 velocity command 时，窗口会自动显示绿色目标速度和�
 `zero` 和 `random` 模式不显示速度箭头。
 
 底层 API 请参阅 `unilab.visualization.playback`。
+
+## 小键盘速度控制
+
+例如回放训练好的 RC27 碎石地形策略：
+
+```bash
+uv run eval --algo flashsac --task rc27dog_rough_stones --sim mujoco \
+    --load-run -1 --render-mode interactive interactive.keyboard=true
+```
+
+点击本地 MuJoCo 窗口取得焦点，小键盘打开 NumLock；主键盘同名数字键也可用。
+
+| 按键 | 功能 |
+| --- | --- |
+| `8` / `2` 或 ↑ / ↓ | vx 增加 / 减少（前 / 后）|
+| `4` / `6` | vy 增加 / 减少（左 / 右）|
+| `7` / `9` 或 ← / → | 转向角速度增加 / 减少（左转 / 右转）|
+| `5`、`0` 或 Enter | 全部速度指令清零 |
+| Backspace | 重置机器人并清零指令 |
+| Space / N | 暂停或继续 / 暂停并单步 |
+| `+` / `-` | 提高 / 降低回放速度 |
+| Esc | 退出 |
+
+每次按键累加一档，松开后保持指令。默认线速度步长 0.1 m/s、角速度步长
+0.2 rad/s，分别用 `interactive.keyboard_step_lin`、`interactive.keyboard_step_ang`
+修改。限幅来自任务速度 command term 的 ranges。速度在机器人机体系下定义，
+正 vx 向前，正 vy 向左，正转向为左转；清零指令由策略减速，并非物理急停。
+
+键盘控制要求恰好一个 `UniformVelocityCommand`（含子类）和策略组中的
+`generated_commands` 观测项，支持观测缩放与历史堆叠。手动命令持续接管随机
+重采样及航向控制，历史和延迟按正常控制步推进；新指令在下次观测更新后供策略
+使用。起始指令为零；键盘模式会关闭任务的 episode 时限，正常行走可持续运行。
+摔倒或越出地形边界后窗口暂停并等待 Backspace；重置后自动继续。
+地形与物理随机化继续使用任务配置。这套按键适用于本地 interactive 窗口。

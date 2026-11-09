@@ -135,7 +135,7 @@ class PlaybackControls:
 class KeyboardCommander:
     """Mutable ``[vx, vy, vyaw]`` velocity command driven by keyboard nudges.
 
-    Per-axis nudges stack and are clamped to the task's ``commands.vel_limit``.
+    Per-axis nudges stack and are clamped to the command term's ranges.
     """
 
     low: np.ndarray
@@ -176,6 +176,50 @@ class KeyboardCommander:
         return (
             f"cmd vx={self.command[0]:+.2f} vy={self.command[1]:+.2f} vyaw={self.command[2]:+.2f}"
         )
+
+
+def velocity_command_term(env: Any) -> Any | None:
+    """Resolve the sole planar velocity command without task-name heuristics."""
+    from unilab.envs.mdp.commands import UniformVelocityCommand
+
+    manager = getattr(env, "command_manager", None)
+    if manager is None:
+        return None
+    terms = [
+        manager.get_term(name)
+        for name in manager.active_terms
+        if isinstance(manager.get_term(name), UniformVelocityCommand)
+    ]
+    return terms[0] if len(terms) == 1 else None
+
+
+def policy_observes_velocity_command(env: Any) -> bool:
+    """Check term semantics, including scaled or history-stacked commands."""
+    from unilab.envs.mdp import generated_commands
+
+    term = velocity_command_term(env)
+    observations = getattr(env, "observation_manager", None)
+    if term is None or observations is None:
+        return False
+    group = env.cfg.policy_observation_group
+    for name in observations.active_terms.get(group, []):
+        cfg = observations.get_term_cfg(group, name)
+        command_name = cfg.params.get("command_name")
+        if cfg.func is generated_commands and command_name is not None:
+            if env.command_manager.get_term(command_name) is term:
+                return True
+    return False
+
+
+def build_unbounded_keyboard_play_override(
+    env_cfg_override: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Remove task time-limit truncation for interactive keyboard playback."""
+    result = copy.deepcopy(env_cfg_override) if env_cfg_override is not None else {}
+    terminations = result.get("terminations")
+    if isinstance(terminations, dict) and "time_out" in terminations:
+        terminations["time_out"] = None
+    return result
 
 
 @dataclass(frozen=True)
