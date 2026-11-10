@@ -30,6 +30,7 @@ import argparse
 import os
 import sys
 import tempfile
+import threading
 import time
 import warnings
 from collections.abc import Sequence
@@ -902,6 +903,7 @@ def play_interactive(args, cfg: DictConfig, *, algo: str | None = None):
 
     commander = _build_keyboard_commander(env, args)
     awaiting_reset = False
+    reset_requested = threading.Event()
     if commander is not None:
         env.set_autoreset(False)
         # Fill reset history with the held zero command before policy inference.
@@ -938,11 +940,7 @@ def play_interactive(args, cfg: DictConfig, *, algo: str | None = None):
             print(f"[play_interactive] speed={controls.speed:.2f}x")
         elif commander is not None and keycode == _KEY_BACKSPACE:
             commander.zero()
-            _write_keyboard_command(env, commander)
-            playback_session.reset()
-            awaiting_reset = False
-            controls.resume()
-            print("[play_interactive] reset (backspace)")
+            reset_requested.set()
         elif commander is not None:
             _handle_command_key(commander, keycode)
 
@@ -988,6 +986,19 @@ def play_interactive(args, cfg: DictConfig, *, algo: str | None = None):
         with torch.inference_mode():
             while viewer.is_running():
                 t0 = time.perf_counter()
+
+                # MuJoCo invokes key callbacks on its viewer thread. Keep env
+                # reset on this thread, after the previous step has completed,
+                # so reset-state transactions and inference tensors stay owned
+                # by the playback loop.
+                if reset_requested.is_set():
+                    reset_requested.clear()
+                    if commander is not None:
+                        _write_keyboard_command(env, commander)
+                    playback_session.reset()
+                    awaiting_reset = False
+                    controls.resume()
+                    print("[play_interactive] reset (backspace)")
 
                 # Write the command before stepping so this step's obs follow it.
                 if commander is not None and env.state is not None:

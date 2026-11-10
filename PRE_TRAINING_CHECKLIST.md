@@ -311,9 +311,13 @@ uv run eval --algo flashsac --task rc27dog_flat --sim mjwarp --load-run -1 --ren
 4. **是否补接触类奖励**：需要往 `scene.xml` 加 `<contact>` sensor（每轮一条），再写自定义 term，属于第二阶段。
 
 ## 8. 启动指令
-```
+```bash
 uv run train --algo flashsac --task rc27dog_rough_stones --sim mujoco \
-  algo.num_envs=4096 algo.max_iterations=15000 training.no_play=true
+  algo.num_envs=4096 algo.updates_per_step=8 algo.max_iterations=15000 training.no_play=true
+```
+```bash
+uv run train --algo flashsac --task rc27dog_rough_stones --sim mujoco \
+  algo.num_envs=4096 algo.updates_per_step=8 algo.max_iterations=15000 env.max_episode_seconds=40 
 ```
 
 ## 9. RC27DogWheelRoughStones 策略回放与键盘控制
@@ -322,7 +326,7 @@ uv run train --algo flashsac --task rc27dog_rough_stones --sim mujoco \
 
 ```bash
 uv run eval --algo flashsac --task rc27dog_rough_stones --sim mujoco \
-  --load-run 2026-11-09_17-30-49_mujoco --render-mode interactive \
+  --render-mode interactive \
   interactive.keyboard=true
 ```
 
