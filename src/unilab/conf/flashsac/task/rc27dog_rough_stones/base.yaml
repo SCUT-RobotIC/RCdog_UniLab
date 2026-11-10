@@ -7,7 +7,7 @@
 # UniLab owner term exists:
 #   leg action order  FR, FL, RR, RL  (robot_lab LEG_JOINT_NAMES)
 #   wheel action order FR, FL, RR, RL (robot_lab WHEEL_JOINT_NAMES)
-#   hip scale 0.125, other leg joints 0.25, wheel velocity scale 5.0
+#   hip scale 0.25, other leg joints 0.8, wheel velocity scale 15.0
 #   sim_dt 0.005 / ctrl_dt 0.02, standing height 0.42 m
 # Source: robot_lab_vision 82595e4, after configure_wheeled_rc().
 # Terrain and contact-material mapping use the documented MuJoCo approximation.
@@ -282,8 +282,8 @@ env:
         - RL_thigh_joint
         - RL_calf_joint
       scale:
-        ".*_hip_joint": 0.125
-        "^(?!.*_hip_joint).*": 0.25
+        ".*_hip_joint": 0.25
+        "^(?!.*_hip_joint).*": 0.8
       clip: {".*": [-100.0, 100.0]}
       use_default_offset: true
       preserve_order: true
@@ -295,7 +295,8 @@ env:
         - FL_feet_joint
         - RR_feet_joint
         - RL_feet_joint
-      scale: 5.0
+      scale: 15.0
+      # hip 0.125->0.25 calf、thigh 0.25->0.8 feet 5.0->15.0 为学习常数偏置留出空间
       # WHEEL_MAX_VELOCITY = 587 rpm -> 61.4705 rad/s
       clip: {".*": [-61.470496255240, 61.470496255240]}
       use_default_offset: false
